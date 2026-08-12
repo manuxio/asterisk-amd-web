@@ -110,6 +110,17 @@ select {
   font-size: 13px;
   color: var(--ink-2);
 }
+/* Pulsante di ascolto nella colonna Audio: bersaglio comodo senza
+   allargare la riga. */
+.btn.play {
+  padding: 3px 8px;
+  font-size: 15px;
+  line-height: 1.2;
+  border-radius: 999px;
+}
+.btn.play:hover {
+  background: var(--accent-soft);
+}
 .btn.chip[aria-pressed='true'] {
   background: var(--accent-soft);
   border-color: rgba(57, 135, 229, 0.5);

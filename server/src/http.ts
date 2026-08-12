@@ -104,12 +104,17 @@ function parseInt0(v: string | null, def: number, min: number, max: number): num
   return Math.min(max, Math.max(min, Math.trunc(n)));
 }
 
+const ALLOWED_STATES = new Set(['pre', 'setup', 'alerting', 'connect']);
+
 function listQueryFrom(url: URL, range: Range) {
+  const state = (url.searchParams.get('state') || '').trim();
   return {
     from: range.from,
     to: range.to,
     q: (url.searchParams.get('q') || '').trim().slice(0, 64) || undefined,
     operator: (url.searchParams.get('operator') || '').trim().slice(0, 64) || undefined,
+    /* Valore non riconosciuto = nessun filtro: mai interpolato in SQL. */
+    state: ALLOWED_STATES.has(state) ? state : undefined,
     onlyDetected: url.searchParams.get('detected') === '1',
     onlyAudio: url.searchParams.get('audio') === '1',
     limit: parseInt0(url.searchParams.get('limit'), 50, 1, 500),

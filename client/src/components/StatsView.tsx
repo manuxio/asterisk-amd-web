@@ -67,25 +67,42 @@ export default function StatsView({
             <Stat
               label="Rilevazioni"
               value={n(stats.detected)}
-              sub={`${pct(stats.detected, stats.calls)} delle chiamate`}
+              sub={`${pct(stats.detected, stats.calls)} delle chiamate · ${n(
+                stats.detectedPreAnswer,
+              )} prima della risposta`}
               accent
             />
             <Stat
               label="Chiamate interrotte"
               value={n(stats.killed)}
-              sub={`${pct(stats.killed, stats.calls)} delle chiamate`}
+              sub={
+                stats.detected
+                  ? `${pct(stats.killed, stats.detected)} delle rilevazioni ha prodotto un hangup`
+                  : `${pct(stats.killed, stats.calls)} delle chiamate`
+              }
             />
             <Stat
               label="Risposte"
               value={n(stats.answered)}
-              sub={`${pct(stats.answered, stats.calls)} arrivate a connect`}
+              sub={`${pct(stats.answered, stats.calls)} chiuse in stato connect`}
             />
             <Stat
               label="Confidenza media"
               value={confidence(stats.avgConfidence)}
               sub="sulle sole rilevazioni"
             />
-            <Stat label="Tempo di rilevazione" value={ms(stats.avgDetectMs)} sub="media dal setup" />
+            {/* Due tempi distinti: dal setup comprende lo squillo, dalla
+                risposta e' la reattivita' effettiva del riconoscimento. */}
+            <Stat
+              label="Rilevata dopo"
+              value={ms(stats.avgDetectMs)}
+              sub="dall'inizio chiamata, squillo incluso"
+            />
+            <Stat
+              label="… dalla risposta"
+              value={ms(stats.avgAfterAnswerMs)}
+              sub="solo rilevazioni post-risposta"
+            />
           </div>
 
           <section className="card">

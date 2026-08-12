@@ -5,6 +5,7 @@ import type {
   DetectionPage,
   Notifications,
   ServerInfo,
+  StateFilter,
 } from '../../../shared/types.js';
 import { api, audioUrl, csvUrl, downloadUrl } from '../api';
 import {
@@ -32,6 +33,7 @@ export default function DetectionsView({
 }) {
   const [q, setQ] = useState('');
   const [operator, setOperator] = useState('');
+  const [state, setState] = useState<StateFilter>('');
   const [onlyDetected, setOnlyDetected] = useState(false);
   const [onlyAudio, setOnlyAudio] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -41,6 +43,9 @@ export default function DetectionsView({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<number | null>(null);
+  /* Riga aperta cliccando l'altoparlante: parte anche la riproduzione.
+   * Aprendo la riga dal resto della riga il player resta fermo. */
+  const [playId, setPlayId] = useState<number | null>(null);
 
   /* Il testo di ricerca si applica dopo una pausa: evita una query per
    * ogni tasto premuto mentre si digita un numero. */
@@ -55,6 +60,7 @@ export default function DetectionsView({
     to: range.to,
     q: debouncedQ || undefined,
     operator: operator || undefined,
+    state: state || undefined,
     onlyDetected,
     onlyAudio,
     limit: PAGE,
@@ -62,7 +68,7 @@ export default function DetectionsView({
   };
 
   /* Cambiare un filtro riporta alla prima pagina. */
-  const filterKey = `${range.from}|${range.to}|${debouncedQ}|${operator}|${onlyDetected}|${onlyAudio}`;
+  const filterKey = `${range.from}|${range.to}|${debouncedQ}|${operator}|${state}|${onlyDetected}|${onlyAudio}`;
   const prevKey = useRef(filterKey);
   useEffect(() => {
     if (prevKey.current !== filterKey) {
@@ -125,6 +131,20 @@ export default function DetectionsView({
                   {o}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="field">
+            Stato finale
+            <select
+              className="select"
+              value={state}
+              onChange={(e) => setState(e.target.value as StateFilter)}
+            >
+              <option value="">Tutti</option>
+              <option value="pre">Prima della risposta (setup + squillo)</option>
+              <option value="setup">Solo setup</option>
+              <option value="alerting">Solo squillo</option>
+              <option value="connect">Risposta (connect)</option>
             </select>
           </label>
           <label className="check">
@@ -193,7 +213,15 @@ export default function DetectionsView({
                     d={d}
                     notif={info?.notifications ?? null}
                     open={openId === d.id}
-                    onToggle={() => setOpenId(openId === d.id ? null : d.id)}
+                    autoplay={playId === d.id}
+                    onToggle={() => {
+                      setOpenId(openId === d.id ? null : d.id);
+                      setPlayId(null);
+                    }}
+                    onPlay={() => {
+                      setOpenId(d.id);
+                      setPlayId(d.id);
+                    }}
                   />
                 ))}
               </tbody>
@@ -252,14 +280,27 @@ function Row({
   d,
   notif,
   open,
+  autoplay,
   onToggle,
+  onPlay,
 }: {
   d: Detection;
   notif: Notifications | null;
   open: boolean;
+  autoplay: boolean;
   onToggle: () => void;
+  onPlay: () => void;
 }) {
   const ns = notifState(d, notif);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  /* La riproduzione parte qui e non con l'attributo autoPlay: il player
+   * viene montato nello stesso gesto del clic, quindi il browser concede
+   * l'attivazione utente. Se la rifiuta comunque, restano i controlli. */
+  useEffect(() => {
+    if (open && autoplay) audioRef.current?.play().catch(() => undefined);
+  }, [open, autoplay, d.id]);
+
   return (
     <>
       <tr className={`row-main${open ? ' open' : ''}`} onClick={onToggle}>
@@ -296,7 +337,25 @@ function Row({
           {ns.kind === 'nessuna' && <span style={{ color: 'var(--ink-3)' }}>—</span>}
         </td>
         <td className="num">{d.operator ? ms(d.timediff_setup_ms) : '—'}</td>
-        <td>{d.hasAudio ? '🔊' : <span style={{ color: 'var(--ink-3)' }}>—</span>}</td>
+        <td>
+          {d.hasAudio ? (
+            <button
+              className="btn ghost play"
+              title="Ascolta la registrazione"
+              aria-label="Ascolta la registrazione"
+              onClick={(e) => {
+                /* Senza questo il clic arriverebbe alla riga e la
+                 * richiuderebbe subito dopo averla aperta. */
+                e.stopPropagation();
+                onPlay();
+              }}
+            >
+              🔊
+            </button>
+          ) : (
+            <span style={{ color: 'var(--ink-3)' }}>—</span>
+          )}
+        </td>
       </tr>
       {open && (
         <tr>
@@ -351,7 +410,7 @@ function Row({
                   {/* WAV PCM 8 kHz mono: riproducibile nativamente. I file
                       pesano poche decine di kB, quindi si precarica la
                       durata per mostrarla subito nel player. */}
-                  <audio controls preload="metadata" src={audioUrl(d.id)} />
+                  <audio ref={audioRef} controls preload="metadata" src={audioUrl(d.id)} />
                   <a className="btn" href={downloadUrl(d.id)} download>
                     ⭳ Scarica WAV
                   </a>

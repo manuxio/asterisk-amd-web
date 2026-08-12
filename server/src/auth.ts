@@ -38,8 +38,24 @@ export function hashPassword(password: string, salt?: string): { salt: string; h
 
 export function readUsers(file: string): UserRecord[] {
   if (!fs.existsSync(file)) return [];
+  let text: string;
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as UsersFile | UserRecord[];
+    text = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    /* Caso tipico: l'utenza e' stata creata con `sudo ./amd-detex-web
+     * useradd`, quindi il file appartiene a root con permessi 0600, e il
+     * servizio che gira come asterisk non riesce piu' a leggerlo. */
+    if ((e as NodeJS.ErrnoException).code === 'EACCES')
+      throw new Error(
+        `file utenti non leggibile (${file}): il servizio non ha i permessi. ` +
+          'Probabilmente è stato creato da root: correggi con ' +
+          `\`chown asterisk:asterisk ${file}\`, e crea gli utenti con ` +
+          '`sudo -u asterisk ./amd-detex-web useradd <nome>`.',
+      );
+    throw new Error(`file utenti non leggibile (${file}): ${(e as Error).message}`);
+  }
+  try {
+    const parsed = JSON.parse(text) as UsersFile | UserRecord[];
     const users = Array.isArray(parsed) ? parsed : parsed.users;
     return Array.isArray(users) ? users : [];
   } catch (e) {

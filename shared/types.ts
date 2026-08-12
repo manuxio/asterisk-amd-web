@@ -47,7 +47,14 @@ export interface Stats {
   killed: number;
   answered: number;
   avgConfidence: number;
+  /** media di timediff_setup_ms sulle rilevazioni: parte dal SETUP, quindi
+   *  comprende tutto il tempo di squillo, non solo l'analisi audio */
   avgDetectMs: number;
+  /** media di timediff_last_state_ms sulle rilevazioni gia' risposte:
+   *  tempo fra la risposta e la rilevazione */
+  avgAfterAnswerMs: number;
+  /** rilevazioni chiuse PRIMA della risposta (call_state <> 'connect') */
+  detectedPreAnswer: number;
   byOperator: { operator: string; count: number }[];
   buckets: Bucket[];
   /** 'hour' quando l'intervallo copre al massimo 2 giorni, altrimenti 'day' */
@@ -98,11 +105,21 @@ export interface Notifications {
   notifyInStates: string;
 }
 
+/**
+ * Filtro sullo stato SIP con cui la chiamata si e' chiusa (colonna
+ * `call_state`). 'pre' raggruppa setup e alerting, cioe' tutto cio' che si
+ * e' concluso PRIMA della risposta.
+ */
+export type StateFilter = '' | 'pre' | 'setup' | 'alerting' | 'connect';
+
+export const STATE_FILTERS: StateFilter[] = ['', 'pre', 'setup', 'alerting', 'connect'];
+
 export interface DetectionFilters {
   from?: string;
   to?: string;
   q?: string;
   operator?: string;
+  state?: StateFilter;
   onlyDetected?: boolean;
   onlyAudio?: boolean;
   limit?: number;

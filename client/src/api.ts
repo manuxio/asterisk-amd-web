@@ -36,6 +36,7 @@ export function queryString(f: DetectionFilters): string {
   if (f.to) p.set('to', f.to);
   if (f.q) p.set('q', f.q);
   if (f.operator) p.set('operator', f.operator);
+  if (f.state) p.set('state', f.state);
   if (f.onlyDetected) p.set('detected', '1');
   if (f.onlyAudio) p.set('audio', '1');
   if (f.limit != null) p.set('limit', String(f.limit));

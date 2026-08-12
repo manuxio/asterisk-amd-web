@@ -106,6 +106,8 @@ export interface ListQuery {
   to: string;
   q?: string;
   operator?: string;
+  /** '' | 'pre' | 'setup' | 'alerting' | 'connect' */
+  state?: string;
   onlyDetected?: boolean;
   onlyAudio?: boolean;
   limit: number;
@@ -129,6 +131,16 @@ function buildWhere(q: ListQuery): WhereParts {
   if (q.operator) {
     clauses.push('operator = ?');
     params.push(q.operator);
+  }
+  /* 'pre' = chiuse prima della risposta. Si esprime come "diverso da
+   * connect" e non come "setup OR alerting": cosi' comprende anche le righe
+   * con call_state vuoto o inatteso, che altrimenti sparirebbero da
+   * entrambi i lati del filtro. */
+  if (q.state === 'pre') {
+    clauses.push("call_state <> 'connect'");
+  } else if (q.state) {
+    clauses.push('call_state = ?');
+    params.push(q.state);
   }
   if (q.onlyDetected) clauses.push("operator <> ''");
   if (q.onlyAudio) clauses.push("recorded_audio_path <> ''");
@@ -217,7 +229,14 @@ export function computeStats(
               SUM(${KILLED}) AS killed,
               SUM(call_state = 'connect') AS answered,
               AVG(CASE WHEN operator <> '' THEN confidence END) AS avg_conf,
-              AVG(CASE WHEN operator <> '' THEN timediff_setup_ms END) AS avg_ms
+              AVG(CASE WHEN operator <> '' THEN timediff_setup_ms END) AS avg_ms,
+              -- timediff_last_state_ms = ms fra l'ultimo cambio di stato SIP
+              -- e la risoluzione. Sulle chiamate risposte e' quindi il tempo
+              -- risposta -> rilevazione, che e' il dato di reattivita' vero:
+              -- avg_ms parte dal setup e include tutto lo squillo.
+              AVG(CASE WHEN operator <> '' AND call_state = 'connect'
+                       THEN timediff_last_state_ms END) AS avg_after_answer,
+              SUM(operator <> '' AND call_state <> 'connect') AS detected_pre
          FROM detections WHERE datetime >= ? AND datetime < ?`,
     )
     .get(from, to) as Row;
@@ -265,6 +284,8 @@ export function computeStats(
     answered: num(agg.answered),
     avgConfidence: num(agg.avg_conf),
     avgDetectMs: Math.round(num(agg.avg_ms)),
+    avgAfterAnswerMs: Math.round(num(agg.avg_after_answer)),
+    detectedPreAnswer: num(agg.detected_pre),
     byOperator,
     buckets,
     bucketMode,
