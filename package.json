@@ -1,0 +1,39 @@
+{
+  "name": "asterisk-amd-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interfaccia web per i riconoscimenti di app_amd_detex",
+  "repository": "github:manuxio/asterisk-amd-web",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "predev:server": "node scripts/ensure-assets.mjs",
+    "dev:server": "node scripts/dev-server.mjs",
+    "dev:client": "vite",
+    "build": "npm run build:client && npm run embed && npm run build:server",
+    "build:client": "vite build",
+    "embed": "node scripts/embed-assets.mjs",
+    "prebuild:server": "node scripts/ensure-assets.mjs",
+    "build:server": "node scripts/build-server.mjs",
+    "build:exe": "npm run build && node scripts/build-sea.mjs",
+    "build:exe:linux": "npm run build && node scripts/build-sea.mjs --target linux-x64",
+    "pretypecheck": "node scripts/ensure-assets.mjs",
+    "typecheck": "tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "start": "node dist/server.cjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.24.2",
+    "postject": "^1.0.0-alpha.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}

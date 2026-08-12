@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cache/
+# Generato dalla build (client incorporato in base64): non va versionato,
+# lo ricrea `npm run build`.
+server/src/assets.generated.ts
+# Configurazione e utenti locali: contengono il segreto di sessione e gli
+# hash delle password.
+amd-web.json
+users.json

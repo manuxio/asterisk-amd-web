@@ -1,0 +1,609 @@
+/*
+ * Tema scuro unico e deliberato: l'interfaccia gira in sala macchine, su
+ * schermi affiancati ai log del PBX. I valori del grafico provengono dalla
+ * palette validata contro la superficie #16161a.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --plane: #0d0d0d;
+  --surface: #16161a;
+  --surface-2: #1d1d22;
+  --surface-3: #24242b;
+
+  --ink: #f4f4f5;
+  --ink-2: #b7b7bf;
+  --ink-3: #7d7d88;
+
+  --line: #2a2a31;
+  --line-strong: #3a3a44;
+
+  --accent: #3987e5;
+  --accent-soft: rgba(57, 135, 229, 0.14);
+  --accent-ink: #8fbcf2;
+
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* ── Controlli ──────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: #4a4a56;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) {
+  background: #4a94ea;
+  border-color: #4a94ea;
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+  padding: 5px 8px;
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.btn.chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.btn.chip[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: rgba(57, 135, 229, 0.5);
+  color: var(--accent-ink);
+}
+
+.input,
+.select {
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  min-width: 0;
+}
+.input::placeholder {
+  color: var(--ink-3);
+}
+.input:focus,
+.select:focus,
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.input[type='date'] {
+  font-variant-numeric: tabular-nums;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.check input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Struttura ──────────────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand small {
+  color: var(--ink-3);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+}
+.tab {
+  padding: 6px 13px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[aria-selected='true'] {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+main {
+  flex: 1;
+  padding: 20px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.card > header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.card > header .hint {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.card .body {
+  padding: 16px;
+}
+
+/* ── Barra filtri ───────────────────────────────────────────────────── */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 13px 16px;
+}
+.presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Schede statistica ──────────────────────────────────────────────── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stat .label {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stat .value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  margin-top: 4px;
+  letter-spacing: -0.02em;
+}
+.stat .sub {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+.stat .value.accent {
+  color: var(--accent-ink);
+}
+
+/* ── Grafici ────────────────────────────────────────────────────────── */
+
+.chart {
+  width: 100%;
+  overflow-x: auto;
+  position: relative;
+}
+.chart svg {
+  display: block;
+}
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  background: var(--surface-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+}
+.chart-tooltip strong {
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.chart-tooltip span {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.op-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 190px) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+}
+.op-row .name {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* display:block obbligatorio: sugli span inline altezza e overflow non
+ * hanno effetto e la barra resterebbe invisibile. */
+.op-row .track {
+  display: block;
+  background: var(--surface-2);
+  border-radius: 4px;
+  height: 10px;
+  overflow: hidden;
+}
+.op-row .fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+.op-row .n {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  min-width: 96px;
+  text-align: right;
+}
+
+/* ── Tabella ────────────────────────────────────────────────────────── */
+
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+/* Niente position:sticky qui: .table-wrap e' un contenitore di scroll
+ * (overflow-x) e l'intestazione sticky si stacca dal corpo lasciando le
+ * righe visibili sopra di se'. */
+th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-3);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  background: var(--surface);
+}
+th.num {
+  text-align: right;
+}
+td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody tr:hover td {
+  background: var(--surface-2);
+}
+tbody tr.open td {
+  background: var(--surface-2);
+}
+tr.row-main {
+  cursor: pointer;
+}
+td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+td.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+.badge.op {
+  background: var(--accent-soft);
+  border-color: rgba(57, 135, 229, 0.45);
+  color: var(--accent-ink);
+  font-weight: 500;
+}
+.badge.none {
+  color: var(--ink-3);
+}
+.badge.killed {
+  border-color: rgba(208, 59, 59, 0.5);
+  color: #e88a8a;
+}
+.badge.ok {
+  border-color: rgba(12, 163, 12, 0.5);
+  color: #6ed36e;
+}
+
+.detail {
+  padding: 14px 16px 18px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 24px;
+  margin-bottom: 14px;
+}
+.detail-grid div {
+  min-width: 0;
+}
+.detail-grid dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+.detail-grid dd {
+  margin: 1px 0 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+  white-space: normal;
+}
+/* Il path del WAV e' lungo: occupa tutta la riga invece di spezzarsi in
+ * una colonna stretta. */
+.detail-grid div.wide {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.player audio {
+  flex: 1;
+  min-width: 260px;
+  height: 36px;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ── Stati ──────────────────────────────────────────────────────────── */
+
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--ink-3);
+}
+.error {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(208, 59, 59, 0.45);
+  background: rgba(208, 59, 59, 0.1);
+  border-radius: var(--radius-sm);
+  color: #f0a0a0;
+}
+.loading {
+  color: var(--ink-3);
+  padding: 24px 16px;
+  text-align: center;
+}
+
+/* ── Login ──────────────────────────────────────────────────────────── */
+
+.login-wrap {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.login {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+}
+.login h1 {
+  margin: 0 0 4px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.login p.sub {
+  margin: 0 0 20px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.login form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login .input {
+  padding: 9px 11px;
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 12px;
+  }
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .who .name {
+    display: none;
+  }
+  th {
+    top: 0;
+  }
+}

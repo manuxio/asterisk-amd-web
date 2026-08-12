@@ -1,0 +1,257 @@
+#!/bin/sh
+#
+# install — installa l'interfaccia web AMD Detex sul server Asterisk.
+#
+#   git clone https://github.com/manuxio/asterisk-amd-web.git
+#   cd asterisk-amd-web
+#   sudo ./install
+#
+# Non serve Node sul server: lo script scarica l'eseguibile gia' compilato
+# (interprete Node incluso) dalla release GitHub. Se il download non e'
+# possibile e Node >= 22.13 e' presente, compila da sorgente.
+#
+# Rieseguirlo aggiorna l'installazione: l'eseguibile viene sostituito,
+# configurazione e utenti restano come sono.
+#
+# Opzioni:
+#   --dir <path>     cartella di installazione   (default /opt/amd-detex-web)
+#   --port <n>       porta HTTP                  (default 8080)
+#   --user <nome>    utente di sistema           (default asterisk)
+#   --conf <path>    amd_detex.conf del modulo   (default /etc/asterisk/amd_detex.conf)
+#   --no-service     non installare l'unit systemd
+#   --local          usa il binario in ./dist senza scaricare nulla
+#
+
+set -eu
+
+REPO="manuxio/asterisk-amd-web"
+INSTALL_DIR="${AMD_WEB_PATH:-/opt/amd-detex-web}"
+PORT="${AMD_WEB_PORT:-8080}"
+SERVICE_USER="${AMD_WEB_USER:-asterisk}"
+AMD_CONF="${AMD_DETEX_CONF:-/etc/asterisk/amd_detex.conf}"
+WITH_SERVICE=1
+LOCAL_ONLY=0
+
+SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+say()  { printf '%s\n' "$*"; }
+step() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+warn() { printf '\033[33mAttenzione:\033[0m %s\n' "$*" >&2; }
+die()  { printf '\033[31mErrore:\033[0m %s\n' "$*" >&2; exit 1; }
+
+# ── Opzioni ────────────────────────────────────────────────────────────
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dir)  INSTALL_DIR="${2:?--dir richiede un percorso}"; shift 2 ;;
+        --port) PORT="${2:?--port richiede un numero}"; shift 2 ;;
+        --user) SERVICE_USER="${2:?--user richiede un nome}"; shift 2 ;;
+        --conf) AMD_CONF="${2:?--conf richiede un percorso}"; shift 2 ;;
+        --no-service) WITH_SERVICE=0; shift ;;
+        --local) LOCAL_ONLY=1; shift ;;
+        -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) die "opzione sconosciuta: $1 (--help per l'elenco)" ;;
+    esac
+done
+
+case "$PORT" in
+    ''|*[!0-9]*) die "porta non valida: $PORT" ;;
+esac
+
+# ── Controlli preliminari ──────────────────────────────────────────────
+step "Controlli preliminari"
+
+[ "$(uname -s)" = "Linux" ] || die "questo script installa su Linux (rilevato: $(uname -s))"
+[ "$(id -u)" = "0" ] || die "eseguire come root:  sudo ./install"
+
+case "$(uname -m)" in
+    x86_64|amd64)  TARGET="linux-x64" ;;
+    aarch64|arm64) TARGET="linux-arm64" ;;
+    *) die "architettura non supportata: $(uname -m)" ;;
+esac
+say "architettura:      $TARGET"
+
+if [ -f "$AMD_CONF" ]; then
+    say "amd_detex.conf:    $AMD_CONF"
+    # I path del database e dell'audio NON si duplicano: li legge
+    # l'interfaccia dal file del modulo. Qui si controlla solo che ci siano.
+    db=$(sed -n 's/^[[:space:]]*database_path[[:space:]]*=[[:space:]]*\([^;]*\).*/\1/p' "$AMD_CONF" | tail -1 | sed 's/[[:space:]]*$//')
+    if [ -n "${db:-}" ]; then
+        say "database:          $db"
+        [ -f "$db" ] || warn "il database non esiste ancora: comparira' alla prima chiamata analizzata."
+    else
+        warn "database_path non impostato in $AMD_CONF: l'interfaccia non avra' dati da mostrare."
+        warn "Impostalo nel modulo e riavvia il servizio."
+    fi
+else
+    warn "$AMD_CONF non trovato. L'installazione prosegue, ma senza quel file"
+    warn "l'interfaccia non sa dove sono database e registrazioni."
+fi
+
+if id "$SERVICE_USER" >/dev/null 2>&1; then
+    say "utente servizio:   $SERVICE_USER"
+else
+    warn "l'utente '$SERVICE_USER' non esiste: il servizio girera' come root."
+    SERVICE_USER="root"
+fi
+
+# ── Reperimento dell'eseguibile ────────────────────────────────────────
+step "Eseguibile"
+
+BIN_SRC=""
+LOCAL_BIN="$SELF_DIR/dist/amd-detex-web-$TARGET"
+[ -f "$LOCAL_BIN" ] || LOCAL_BIN="$SELF_DIR/dist/amd-detex-web"
+
+if [ -f "$LOCAL_BIN" ]; then
+    say "trovato in locale: $LOCAL_BIN"
+    BIN_SRC="$LOCAL_BIN"
+elif [ "$LOCAL_ONLY" = "1" ]; then
+    die "--local richiesto ma dist/amd-detex-web-$TARGET non esiste"
+else
+    URL="https://github.com/$REPO/releases/latest/download/amd-detex-web-$TARGET"
+    TMP_BIN=$(mktemp)
+    trap 'rm -f "$TMP_BIN"' EXIT INT TERM
+    say "scarico $URL"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL --progress-bar -o "$TMP_BIN" "$URL" || DL_FAIL=1
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --show-progress -O "$TMP_BIN" "$URL" || DL_FAIL=1
+    else
+        DL_FAIL=1
+        warn "ne' curl ne' wget disponibili"
+    fi
+
+    if [ -s "$TMP_BIN" ] && [ "${DL_FAIL:-0}" = "0" ]; then
+        BIN_SRC="$TMP_BIN"
+    else
+        warn "download non riuscito, provo a compilare da sorgente"
+        command -v node >/dev/null 2>&1 || die "download fallito e Node non installato: scarica a mano
+  $URL
+e rilancia lo script dalla stessa cartella con --local"
+        node_major=$(node -p 'process.versions.node.split(".")[0]')
+        [ "$node_major" -ge 22 ] || die "serve Node >= 22.13 per compilare (trovato $(node -v))"
+        say "compilo con $(node -v) — puo' richiedere qualche minuto"
+        ( cd "$SELF_DIR" && npm install --no-audit --no-fund && npm run build:exe )
+        BIN_SRC="$SELF_DIR/dist/amd-detex-web"
+        [ -f "$BIN_SRC" ] || die "compilazione non riuscita"
+    fi
+fi
+
+chmod +x "$BIN_SRC"
+"$BIN_SRC" --version >/dev/null 2>&1 || die "l'eseguibile non parte su questo sistema"
+say "versione:          $("$BIN_SRC" --version)"
+
+# ── Installazione ──────────────────────────────────────────────────────
+step "Installazione in $INSTALL_DIR"
+
+mkdir -p "$INSTALL_DIR"
+# Copia .new + rinomina: su Linux un binario in esecuzione non e'
+# sovrascrivibile in place (ETXTBSY), e cosi' l'aggiornamento e' atomico.
+cp "$BIN_SRC" "$INSTALL_DIR/amd-detex-web.new"
+chmod 755 "$INSTALL_DIR/amd-detex-web.new"
+mv -f "$INSTALL_DIR/amd-detex-web.new" "$INSTALL_DIR/amd-detex-web"
+say "eseguibile installato"
+
+CONFIG="$INSTALL_DIR/amd-web.json"
+if [ -f "$CONFIG" ]; then
+    say "configurazione gia' presente: lasciata invariata ($CONFIG)"
+    PORT=$(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$CONFIG" | head -1)
+    PORT="${PORT:-8080}"
+else
+    cat > "$CONFIG" <<JSON
+{
+  "port": $PORT,
+  "host": "0.0.0.0",
+  "amdConfigPath": "$AMD_CONF",
+  "usersFile": "$INSTALL_DIR/users.json",
+  "timezone": "Europe/Rome",
+  "sessionHours": 12,
+  "secureCookie": false
+}
+JSON
+    chmod 600 "$CONFIG"
+    say "configurazione creata ($CONFIG, porta $PORT)"
+fi
+
+chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR" 2>/dev/null || true
+
+# ── Primo utente ───────────────────────────────────────────────────────
+step "Utenti"
+
+USERS_FILE="$INSTALL_DIR/users.json"
+NEED_USER=0
+if [ -s "$USERS_FILE" ] && grep -q '"username"' "$USERS_FILE" 2>/dev/null; then
+    say "utenti gia' configurati: nessuna modifica"
+else
+    NEED_USER=1
+    if [ -t 0 ]; then
+        say "Creazione del primo utente per l'accesso web."
+        printf 'Nome utente [admin]: '
+        read -r newuser
+        newuser="${newuser:-admin}"
+        if su -s /bin/sh "$SERVICE_USER" -c "'$INSTALL_DIR/amd-detex-web' useradd '$newuser' --config '$CONFIG'"; then
+            NEED_USER=0
+            chown "$SERVICE_USER":"$SERVICE_USER" "$USERS_FILE" 2>/dev/null || true
+        else
+            warn "creazione utente non riuscita, si potra' rifare a mano"
+        fi
+    else
+        warn "sessione non interattiva: creare l'utente a mano (istruzioni in fondo)"
+    fi
+fi
+
+# ── Servizio ───────────────────────────────────────────────────────────
+HAVE_SYSTEMD=0
+if [ "$WITH_SERVICE" = "1" ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    HAVE_SYSTEMD=1
+fi
+
+if [ "$HAVE_SYSTEMD" = "1" ]; then
+    step "Servizio systemd"
+    UNIT=/etc/systemd/system/amd-detex-web.service
+    sed -e "s#__DIR__#$INSTALL_DIR#g" -e "s#__USER__#$SERVICE_USER#g" \
+        "$SELF_DIR/amd-detex-web.service" > "$UNIT"
+    systemctl daemon-reload
+    systemctl enable amd-detex-web >/dev/null 2>&1 || true
+    if [ "$NEED_USER" = "0" ]; then
+        systemctl restart amd-detex-web
+        sleep 1
+        if systemctl is-active --quiet amd-detex-web; then
+            say "servizio attivo"
+        else
+            warn "il servizio non e' partito. Diagnostica:"
+            warn "  journalctl -u amd-detex-web -n 30 --no-pager"
+        fi
+    else
+        say "servizio installato ma non avviato: manca l'utente di accesso"
+    fi
+elif [ "$WITH_SERVICE" = "1" ]; then
+    warn "systemd non disponibile: servizio non installato"
+fi
+
+# ── Riepilogo ──────────────────────────────────────────────────────────
+IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+[ -n "${IP:-}" ] || IP=$(hostname 2>/dev/null || echo localhost)
+
+printf '\n\033[1m============================================================\033[0m\n'
+if [ "$NEED_USER" = "1" ]; then
+    say "Installazione completata. Manca il primo utente:"
+    say ""
+    say "  sudo -u $SERVICE_USER $INSTALL_DIR/amd-detex-web useradd admin \\"
+    say "       --config $CONFIG"
+    if [ "$HAVE_SYSTEMD" = "1" ]; then
+        say "  sudo systemctl start amd-detex-web"
+    fi
+else
+    say "Installazione completata."
+fi
+say ""
+say "  Interfaccia:  http://$IP:$PORT"
+if [ "$HAVE_SYSTEMD" = "1" ]; then
+    say "  Stato:        systemctl status amd-detex-web"
+    say "  Log:          journalctl -u amd-detex-web -f"
+else
+    say "  Avvio:        $INSTALL_DIR/amd-detex-web --config $CONFIG"
+fi
+say "  Utenti:       $INSTALL_DIR/amd-detex-web users --config $CONFIG"
+say "  Aggiornare:   git pull && sudo ./install"
+printf '\033[1m============================================================\033[0m\n'

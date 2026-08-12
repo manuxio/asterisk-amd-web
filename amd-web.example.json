@@ -1,0 +1,12 @@
+{
+  "port": 8080,
+  "host": "0.0.0.0",
+  "amdConfigPath": "/etc/asterisk/amd_detex.conf",
+  "usersFile": "/etc/asterisk/amd-web-users.json",
+  "timezone": "Europe/Rome",
+  "sessionHours": 12,
+  "secureCookie": false,
+  "databasePath": "",
+  "audioPath": "",
+  "extraAudioRoots": []
+}

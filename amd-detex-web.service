@@ -1,0 +1,24 @@
+[Unit]
+# I segnaposto __DIR__ e __USER__ vengono sostituiti da ./install.
+Description=AMD Detex - interfaccia web dei riconoscimenti
+After=network.target asterisk.service
+
+[Service]
+Type=simple
+# L'utente deve poter leggere il SQLite (e il suo -wal/-shm) e i WAV
+# scritti dal modulo: asterisk e' la scelta naturale.
+User=__USER__
+Group=__USER__
+WorkingDirectory=__DIR__
+ExecStart=__DIR__/amd-detex-web --config __DIR__/amd-web.json
+Restart=on-failure
+RestartSec=5
+
+# Legge database e registrazioni, scrive solo il proprio file utenti.
+NoNewPrivileges=yes
+PrivateTmp=no
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
