@@ -72,6 +72,30 @@ export interface ServerInfo {
   version: string;
   /** direttive utili lette da amd_detex.conf, per il pannello informativo */
   settings: { key: string; value: string }[];
+  /** canali di notifica configurati nel modulo (URL senza credenziali) */
+  notifications: Notifications;
+}
+
+/**
+ * Canali di notifica del modulo, letti da amd_detex.conf.
+ *
+ * Sono una CONFIGURAZIONE, non un registro: il database conserva una sola
+ * azione per chiamata (la piu' decisiva), quindi una notifica partita
+ * insieme a un hangup non lascia traccia nella riga. Serve a dire
+ * all'utente quali invii sono attivi, non a certificare che siano andati
+ * a buon fine.
+ */
+export interface Notifications {
+  /** report_url: un POST JSON a fine chiamata */
+  reportUrl: string;
+  /** terminated_notify_url: POST quando il modulo interrompe la chiamata */
+  terminatedNotifyUrl: string;
+  /** monitor_url: bundle completo verso il server di monitoraggio */
+  monitorUrl: string;
+  /** notify_non_detected: il report parte anche senza rilevazione */
+  notifyNonDetected: boolean;
+  /** notify_in_states: stati SIP in cui le notifiche possono partire */
+  notifyInStates: string;
 }
 
 export interface DetectionFilters {

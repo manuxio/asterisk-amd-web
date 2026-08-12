@@ -223,6 +223,40 @@ export function resolveAudioPath(cfg: WebConfig): string {
   return readAmdConf(cfg).values.get('detections_save_path') || '';
 }
 
+/**
+ * Rimuove le credenziali da un URL prima di mostrarlo.
+ * `http://utente:segreto@host:9000/x` diventa `http://host:9000/x`.
+ * Un valore non parsabile come URL viene restituito invariato: e' comunque
+ * roba scritta dall'amministratore nel proprio file di configurazione.
+ */
+export function maskUrl(raw: string): string {
+  if (!raw) return '';
+  try {
+    const u = new URL(raw);
+    if (u.username || u.password) {
+      u.username = '';
+      u.password = '';
+      return u.toString();
+    }
+    return raw;
+  } catch {
+    return raw;
+  }
+}
+
+/** Canali di notifica configurati nel modulo. */
+export function readNotifications(cfg: WebConfig) {
+  const v = readAmdConf(cfg).values;
+  const yes = (k: string) => /^(yes|true|1|on)$/i.test((v.get(k) || '').trim());
+  return {
+    reportUrl: maskUrl(v.get('report_url') || ''),
+    terminatedNotifyUrl: maskUrl(v.get('terminated_notify_url') || ''),
+    monitorUrl: maskUrl(v.get('monitor_url') || ''),
+    notifyNonDetected: yes('notify_non_detected'),
+    notifyInStates: v.get('notify_in_states') || '',
+  };
+}
+
 /** Direttive mostrate nel pannello informativo (mai URL con credenziali). */
 export const EXPOSED_DIRECTIVES = [
   'enabled',
@@ -231,11 +265,10 @@ export const EXPOSED_DIRECTIVES = [
   'check_interval_ms',
   'disengage_after_connect_ms',
   'destructive_actions_states',
-  'notify_in_states',
-  'detections_save_path',
   'save_all_calls',
-  'database_path',
   'monitor_calls',
-  'notify_non_detected',
   'log_level',
 ];
+/* database_path, detections_save_path, notify_in_states e
+ * notify_non_detected NON sono qui: hanno gia' un posto dedicato nel
+ * pannello (percorsi in cima, canali di notifica in fondo). */

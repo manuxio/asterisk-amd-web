@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Detection, DetectionFilters, DetectionPage } from '../../../shared/types.js';
+import type {
+  Detection,
+  DetectionFilters,
+  DetectionPage,
+  Notifications,
+  ServerInfo,
+} from '../../../shared/types.js';
 import { api, audioUrl, csvUrl, downloadUrl } from '../api';
 import {
   actionLabel,
@@ -15,7 +21,15 @@ import DateRange, { type Range } from './DateRange';
 
 const PAGE = 50;
 
-export default function DetectionsView({ range, onRange }: { range: Range; onRange: (r: Range) => void }) {
+export default function DetectionsView({
+  range,
+  onRange,
+  info,
+}: {
+  range: Range;
+  onRange: (r: Range) => void;
+  info: ServerInfo | null;
+}) {
   const [q, setQ] = useState('');
   const [operator, setOperator] = useState('');
   const [onlyDetected, setOnlyDetected] = useState(false);
@@ -167,6 +181,7 @@ export default function DetectionsView({ range, onRange }: { range: Range; onRan
                   <th>Operatore</th>
                   <th className="num">Conf.</th>
                   <th>Azione</th>
+                  <th>Notifica</th>
                   <th className="num">Rilevata a</th>
                   <th>Audio</th>
                 </tr>
@@ -176,6 +191,7 @@ export default function DetectionsView({ range, onRange }: { range: Range; onRan
                   <Row
                     key={d.id}
                     d={d}
+                    notif={info?.notifications ?? null}
                     open={openId === d.id}
                     onToggle={() => setOpenId(openId === d.id ? null : d.id)}
                   />
@@ -207,7 +223,43 @@ export default function DetectionsView({ range, onRange }: { range: Range; onRan
   );
 }
 
-function Row({ d, open, onToggle }: { d: Detection; open: boolean; onToggle: () => void }) {
+/**
+ * Stato della notifica per una chiamata.
+ *
+ * Attenzione a cosa si puo' affermare: il database conserva UNA sola azione
+ * per chiamata, la piu' decisiva (src/amd_audiohook.c). `notify_url` finisce
+ * nella riga solo se non e' stato eseguito nient'altro, quindi una notifica
+ * partita insieme a un hangup non lascia traccia. Per questo si distingue
+ * fra "registrata" (fatto certo, letto dal database) e "prevista"
+ * (dedotta dalla configurazione del modulo, non confermata).
+ */
+type NotifState =
+  | { kind: 'registrata'; url: string }
+  | { kind: 'prevista'; url: string; perche: string }
+  | { kind: 'nessuna' };
+
+function notifState(d: Detection, n: Notifications | null): NotifState {
+  if (d.action === 'notify_url' && d.action_argument)
+    return { kind: 'registrata', url: d.action_argument };
+  if (n?.terminatedNotifyUrl && (isKilled(d.action) || d.action === 'redirect'))
+    return { kind: 'prevista', url: n.terminatedNotifyUrl, perche: 'chiamata interrotta dal modulo' };
+  if (n?.reportUrl && (d.operator || n.notifyNonDetected))
+    return { kind: 'prevista', url: n.reportUrl, perche: 'report di fine chiamata' };
+  return { kind: 'nessuna' };
+}
+
+function Row({
+  d,
+  notif,
+  open,
+  onToggle,
+}: {
+  d: Detection;
+  notif: Notifications | null;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const ns = notifState(d, notif);
   return (
     <>
       <tr className={`row-main${open ? ' open' : ''}`} onClick={onToggle}>
@@ -230,12 +282,25 @@ function Row({ d, open, onToggle }: { d: Detection; open: boolean; onToggle: () 
             {actionLabel(d.action)}
           </span>
         </td>
+        <td>
+          {ns.kind === 'registrata' && (
+            <span className="badge ok" title={`Inviata a ${ns.url}`}>
+              ✉ inviata
+            </span>
+          )}
+          {ns.kind === 'prevista' && (
+            <span className="badge none" title={`Prevista a ${ns.url} — ${ns.perche}`}>
+              ✉ prevista
+            </span>
+          )}
+          {ns.kind === 'nessuna' && <span style={{ color: 'var(--ink-3)' }}>—</span>}
+        </td>
         <td className="num">{d.operator ? ms(d.timediff_setup_ms) : '—'}</td>
         <td>{d.hasAudio ? '🔊' : <span style={{ color: 'var(--ink-3)' }}>—</span>}</td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={9} style={{ padding: 0, whiteSpace: 'normal' }}>
+          <td colSpan={10} style={{ padding: 0, whiteSpace: 'normal' }}>
             <div className="detail">
               <dl className="detail-grid">
                 <div>
@@ -257,6 +322,23 @@ function Row({ d, open, onToggle }: { d: Detection; open: boolean; onToggle: () 
                 <div>
                   <dt>Da ultimo cambio stato</dt>
                   <dd>{ms(d.timediff_last_state_ms)}</dd>
+                </div>
+                <div className="wide">
+                  <dt>Notifica</dt>
+                  <dd>
+                    {ns.kind === 'registrata' && <>Inviata a {ns.url}</>}
+                    {ns.kind === 'prevista' && (
+                      <>
+                        Prevista a {ns.url} — {ns.perche}
+                        <span className="note">
+                          {' '}
+                          (configurata nel modulo; il database registra una sola azione per
+                          chiamata, quindi l&apos;invio non risulta dalla riga)
+                        </span>
+                      </>
+                    )}
+                    {ns.kind === 'nessuna' && <>Nessuna notifica registrata né configurata</>}
+                  </dd>
                 </div>
                 <div className="wide">
                   <dt>File audio</dt>

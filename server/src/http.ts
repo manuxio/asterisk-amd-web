@@ -12,6 +12,7 @@ import type { WebConfig } from './config.js';
 import {
   EXPOSED_DIRECTIVES,
   readAmdConf,
+  readNotifications,
   resolveAudioPath,
   resolveDatabasePath,
 } from './config.js';
@@ -269,6 +270,7 @@ async function handle(
           key: k,
           value: conf.values.get(k) || '',
         })),
+        notifications: readNotifications(cfg),
       };
       return json(res, 200, info);
     }
@@ -335,6 +337,17 @@ async function handle(
     return json(res, 404, { error: 'endpoint sconosciuto' });
   } catch (e) {
     if (e instanceof DbUnavailable) return json(res, 503, { error: e.message });
-    return json(res, 400, { error: (e as Error).message });
+    const msg = (e as Error).message || '';
+    /* Il modulo tiene il database in WAL: anche per la sola lettura SQLite
+     * deve poter scrivere il file e creare -wal/-shm nella sua cartella.
+     * L'errore grezzo di SQLite non lo spiega, e manda fuori strada. */
+    if (/readonly database|unable to open database|attempt to write/i.test(msg))
+      return json(res, 503, {
+        error:
+          'Database non accessibile in scrittura. Il modulo lo tiene in modalità WAL: ' +
+          'anche per leggerlo servono i permessi di scrittura sul file e sulla sua ' +
+          'cartella. Esegui il servizio come utente asterisk, oppure allinea i permessi.',
+      });
+    return json(res, 400, { error: msg });
   }
 }

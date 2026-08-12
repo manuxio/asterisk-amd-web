@@ -5,6 +5,7 @@ import Login from './components/Login';
 import DetectionsView from './components/DetectionsView';
 import StatsView from './components/StatsView';
 import type { Range } from './components/DateRange';
+import type { ServerInfo } from '../../shared/types.js';
 
 type Tab = 'detections' | 'stats';
 
@@ -15,6 +16,9 @@ export default function App() {
   /* L'intervallo e' condiviso fra le due schede: passare da statistiche a
    * elenco non deve far perdere il periodo che si sta guardando. */
   const [range, setRange] = useState<Range>({ from: todayLocal(), to: todayLocal() });
+  /* Letto una volta sola e condiviso: serve all'elenco (canali di notifica
+   * configurati) e alle statistiche (pannello di configurazione). */
+  const [info, setInfo] = useState<ServerInfo | null>(null);
 
   useEffect(() => {
     api
@@ -23,6 +27,11 @@ export default function App() {
       .catch(() => setUser(null))
       .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    api.info().then(setInfo).catch(() => setInfo(null));
+  }, [user]);
 
   /* Sessione scaduta durante l'uso: si torna al login senza ricaricare. */
   useEffect(() => {
@@ -78,9 +87,9 @@ export default function App() {
 
       <main>
         {tab === 'detections' ? (
-          <DetectionsView range={range} onRange={setRange} />
+          <DetectionsView range={range} onRange={setRange} info={info} />
         ) : (
-          <StatsView range={range} onRange={setRange} />
+          <StatsView range={range} onRange={setRange} info={info} />
         )}
       </main>
     </div>

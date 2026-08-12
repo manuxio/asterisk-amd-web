@@ -514,6 +514,25 @@ td.mono {
   display: flex;
   gap: 8px;
 }
+
+.note {
+  color: var(--ink-3);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.45;
+}
+p.note {
+  margin: 12px 0 0;
+  max-width: 78ch;
+}
+.sub-head {
+  margin: 22px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
 .player {
   display: flex;
   align-items: center;

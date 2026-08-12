@@ -5,10 +5,17 @@ import { confidence, ms, n, pct } from '../format';
 import DateRange, { type Range } from './DateRange';
 import { BucketChart, OperatorBars } from './Charts';
 
-export default function StatsView({ range, onRange }: { range: Range; onRange: (r: Range) => void }) {
+export default function StatsView({
+  range,
+  onRange,
+  info,
+}: {
+  range: Range;
+  onRange: (r: Range) => void;
+  info: ServerInfo | null;
+}) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [summary, setSummary] = useState<{ today: Stats; yesterday: Stats } | null>(null);
-  const [info, setInfo] = useState<ServerInfo | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +39,6 @@ export default function StatsView({ range, onRange }: { range: Range; onRange: (
 
   useEffect(() => {
     api.summary().then(setSummary).catch(() => setSummary(null));
-    api.info().then(setInfo).catch(() => setInfo(null));
   }, []);
 
   return (
@@ -187,7 +193,58 @@ function InfoCard({ info }: { info: ServerInfo }) {
             </div>
           ))}
         </dl>
+
+        <h3 className="sub-head">Canali di notifica</h3>
+        <dl className="detail-grid">
+          <Channel
+            label="report_url"
+            url={info.notifications.reportUrl}
+            hint={`report JSON a fine chiamata${
+              info.notifications.notifyNonDetected ? ', anche senza rilevazione' : ', solo se rilevata'
+            }`}
+          />
+          <Channel
+            label="terminated_notify_url"
+            url={info.notifications.terminatedNotifyUrl}
+            hint="quando il modulo interrompe la chiamata"
+          />
+          <Channel
+            label="monitor_url"
+            url={info.notifications.monitorUrl}
+            hint="bundle completo con audio e cronologia"
+          />
+          {info.notifications.notifyInStates && (
+            <div>
+              <dt>notify_in_states</dt>
+              <dd>{info.notifications.notifyInStates}</dd>
+            </div>
+          )}
+        </dl>
+        <p className="note">
+          Il database conserva una sola azione per chiamata, la più decisiva: una notifica
+          partita insieme a un hangup non lascia traccia nella riga. Nell&apos;elenco è
+          marcata «inviata» solo quando risulta dal database, «prevista» quando la
+          configurazione qui sopra la implica. Le credenziali eventualmente presenti negli
+          URL non vengono mostrate.
+        </p>
       </div>
     </section>
+  );
+}
+
+function Channel({ label, url, hint }: { label: string; url: string; hint: string }) {
+  return (
+    <div className="wide">
+      <dt>{label}</dt>
+      <dd>
+        {url ? (
+          <>
+            {url} <span className="note">— {hint}</span>
+          </>
+        ) : (
+          <span style={{ color: 'var(--ink-3)' }}>non configurato</span>
+        )}
+      </dd>
+    </div>
   );
 }
