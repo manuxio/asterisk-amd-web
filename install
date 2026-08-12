@@ -101,43 +101,90 @@ BIN_SRC=""
 LOCAL_BIN="$SELF_DIR/dist/amd-detex-web-$TARGET"
 [ -f "$LOCAL_BIN" ] || LOCAL_BIN="$SELF_DIR/dist/amd-detex-web"
 
+# Scarica $1 in $2. Riprende un file parziale e ritenta: l'archivio pesa
+# una quarantina di MB e su una linea instabile il primo tentativo puo'
+# morire a meta'.
+fetch() {
+    _url="$1"; _out="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL --progress-bar --retry 5 --retry-delay 3 --retry-connrefused \
+             -C - -o "$_out" "$_url"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q --show-progress --tries=5 --continue -O "$_out" "$_url"
+    else
+        return 1
+    fi
+}
+
+# Confronta l'sha256 di $1 con la riga di $2 relativa a $3.
+# Senza sha256sum il controllo si salta: non e' un motivo per bloccare.
+verify_sum() {
+    command -v sha256sum >/dev/null 2>&1 || return 0
+    [ -f "$2" ] || return 0
+    _want=$(awk -v f="$3" '$2 == f { print $1 }' "$2")
+    [ -n "$_want" ] || return 0
+    _got=$(sha256sum "$1" | awk '{print $1}')
+    [ "$_want" = "$_got" ]
+}
+
+build_from_source() {
+    command -v node >/dev/null 2>&1 || die "download non riuscito e Node non installato.
+Scarica l'archivio a mano da
+  https://github.com/$REPO/releases/latest
+scompattalo in $SELF_DIR/dist/ e rilancia con:  sudo ./install --local"
+    _major=$(node -p 'process.versions.node.split(".")[0]')
+    [ "$_major" -ge 22 ] || die "serve Node >= 22.13 per compilare (trovato $(node -v))"
+    say "compilo con $(node -v) — puo' richiedere qualche minuto"
+    ( cd "$SELF_DIR" && npm install --no-audit --no-fund && npm run build:exe )
+    [ -f "$SELF_DIR/dist/amd-detex-web" ] || die "compilazione non riuscita"
+    BIN_SRC="$SELF_DIR/dist/amd-detex-web"
+}
+
 if [ -f "$LOCAL_BIN" ]; then
     say "trovato in locale: $LOCAL_BIN"
     BIN_SRC="$LOCAL_BIN"
 elif [ "$LOCAL_ONLY" = "1" ]; then
     die "--local richiesto ma dist/amd-detex-web-$TARGET non esiste"
 else
-    URL="https://github.com/$REPO/releases/latest/download/amd-detex-web-$TARGET"
-    TMP_BIN=$(mktemp)
-    trap 'rm -f "$TMP_BIN"' EXIT INT TERM
-    say "scarico $URL"
-    if command -v curl >/dev/null 2>&1; then
-        curl -fL --progress-bar -o "$TMP_BIN" "$URL" || DL_FAIL=1
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q --show-progress -O "$TMP_BIN" "$URL" || DL_FAIL=1
+    ASSET="amd-detex-web-$TARGET.gz"
+    BASE="https://github.com/$REPO/releases/latest/download"
+    TMP_DIR=$(mktemp -d)
+    trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
+
+    say "scarico $BASE/$ASSET (~40 MB)"
+    if fetch "$BASE/$ASSET" "$TMP_DIR/$ASSET"; then
+        fetch "$BASE/SHA256SUMS" "$TMP_DIR/SHA256SUMS" >/dev/null 2>&1 || true
+        if verify_sum "$TMP_DIR/$ASSET" "$TMP_DIR/SHA256SUMS" "$ASSET"; then
+            if gzip -dc "$TMP_DIR/$ASSET" > "$TMP_DIR/amd-detex-web" 2>/dev/null; then
+                BIN_SRC="$TMP_DIR/amd-detex-web"
+                say "archivio verificato e scompattato"
+            else
+                warn "archivio scaricato ma illeggibile"
+            fi
+        else
+            warn "checksum non corrispondente: download corrotto o incompleto"
+        fi
     else
-        DL_FAIL=1
-        warn "ne' curl ne' wget disponibili"
+        warn "download non riuscito"
     fi
 
-    if [ -s "$TMP_BIN" ] && [ "${DL_FAIL:-0}" = "0" ]; then
-        BIN_SRC="$TMP_BIN"
-    else
-        warn "download non riuscito, provo a compilare da sorgente"
-        command -v node >/dev/null 2>&1 || die "download fallito e Node non installato: scarica a mano
-  $URL
-e rilancia lo script dalla stessa cartella con --local"
-        node_major=$(node -p 'process.versions.node.split(".")[0]')
-        [ "$node_major" -ge 22 ] || die "serve Node >= 22.13 per compilare (trovato $(node -v))"
-        say "compilo con $(node -v) — puo' richiedere qualche minuto"
-        ( cd "$SELF_DIR" && npm install --no-audit --no-fund && npm run build:exe )
-        BIN_SRC="$SELF_DIR/dist/amd-detex-web"
-        [ -f "$BIN_SRC" ] || die "compilazione non riuscita"
+    if [ -z "$BIN_SRC" ]; then
+        warn "riprovo con il binario non compresso"
+        if fetch "$BASE/amd-detex-web-$TARGET" "$TMP_DIR/amd-detex-web"; then
+            BIN_SRC="$TMP_DIR/amd-detex-web"
+        else
+            warn "anche questo tentativo e' fallito, provo a compilare da sorgente"
+            build_from_source
+        fi
     fi
 fi
 
 chmod +x "$BIN_SRC"
-"$BIN_SRC" --version >/dev/null 2>&1 || die "l'eseguibile non parte su questo sistema"
+if ! "$BIN_SRC" --version >/dev/null 2>&1; then
+    die "l'eseguibile non parte: download incompleto oppure architettura
+incompatibile (rilevata $TARGET). Rilancia lo script per riprovare il
+download, oppure installa Node >= 22.13 e compila da sorgente."
+fi
 say "versione:          $("$BIN_SRC" --version)"
 
 # ── Installazione ──────────────────────────────────────────────────────
