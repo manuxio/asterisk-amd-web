@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ServerInfo, Stats } from '../../../shared/types.js';
 import { api } from '../api';
-import { confidence, ms, n, pct } from '../format';
+import { n, pct } from '../format';
 import DateRange, { type Range } from './DateRange';
 import { BucketChart, OperatorBars } from './Charts';
 
@@ -15,7 +15,6 @@ export default function StatsView({
   info: ServerInfo | null;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [summary, setSummary] = useState<{ today: Stats; yesterday: Stats } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   /* Finestra oraria: vuota = giornata intera. Impostandola a 09:00-20:45 si
@@ -40,10 +39,6 @@ export default function StatsView({
       cancelled = true;
     };
   }, [range.from, range.to, fromTime, toTime]);
-
-  useEffect(() => {
-    api.summary().then(setSummary).catch(() => setSummary(null));
-  }, []);
 
   return (
     <>
@@ -95,66 +90,17 @@ export default function StatsView({
 
       {error && <p className="error">{error}</p>}
 
-      {summary && (
-        <div className="stat-grid">
-          <DayCard title="Oggi" s={summary.today} />
-          <DayCard title="Ieri" s={summary.yesterday} />
-        </div>
-      )}
-
       {loading && !stats && <p className="loading">Caricamento statistiche…</p>}
 
       {stats && (
         <>
-          <div className="stat-grid">
-            <Stat label="Chiamate" value={n(stats.calls)} sub="nel periodo selezionato" />
-            <Stat
-              label="Rilevazioni"
-              value={n(stats.detected)}
-              sub={`${pct(stats.detected, stats.calls)} delle chiamate · ${n(
-                stats.detectedPreAnswer,
-              )} prima della risposta`}
-              accent
-            />
-            <Stat
-              label="Chiamate interrotte"
-              value={n(stats.killed)}
-              sub={
-                stats.detected
-                  ? `${pct(stats.killed, stats.detected)} delle rilevazioni ha prodotto un hangup`
-                  : `${pct(stats.killed, stats.calls)} delle chiamate`
-              }
-            />
-            <Stat
-              label="Risposte"
-              value={n(stats.answered)}
-              sub={`${pct(stats.answered, stats.calls)} chiuse in stato connect`}
-            />
-            <Stat
-              label="Confidenza media"
-              value={confidence(stats.avgConfidence)}
-              sub="sulle sole rilevazioni"
-            />
-            {/* Due tempi distinti: dal setup comprende lo squillo, dalla
-                risposta e' la reattivita' effettiva del riconoscimento. */}
-            <Stat
-              label="Rilevata dopo"
-              value={ms(stats.avgDetectMs)}
-              sub="dall'inizio chiamata, squillo incluso"
-            />
-            <Stat
-              label="… dalla risposta"
-              value={ms(stats.avgAfterAnswerMs)}
-              sub="solo rilevazioni post-risposta"
-            />
-          </div>
-
-          <TransitoCard stats={stats} />
           <FiltraggioCard stats={stats} />
 
           <section className="card">
             <header>
-              <h2>{stats.bucketMode === 'hour' ? 'Distribuzione oraria' : 'Andamento giornaliero'}</h2>
+              <h2>
+                {stats.bucketMode === 'hour' ? 'Filtraggio per ora' : 'Filtraggio per giorno'}
+              </h2>
               <span className="hint">fuso {stats.timezone}</span>
             </header>
             <div className="body">
@@ -177,6 +123,10 @@ export default function StatsView({
               <OperatorBars data={stats.byOperator} total={stats.detected} />
             </div>
           </section>
+
+          {/* Riferimento generale sul traffico: in fondo, perche' le
+              chiamate mai arrivate a destinazione contano poco. */}
+          <TransitoCard stats={stats} />
         </>
       )}
 
@@ -219,7 +169,6 @@ function TransitoCard({ stats }: { stats: Stats }) {
     <section className="card">
       <header>
         <h2>Transito PBX</h2>
-        <span className="hint">quattro classi disgiunte, sommano al totale</span>
       </header>
       <div className="table-wrap">
         <table className="breakdown">
@@ -311,58 +260,7 @@ function FiltraggioCard({ stats }: { stats: Stats }) {
           </tbody>
         </table>
       </div>
-      <div className="body" style={{ paddingTop: 0 }}>
-        <p className="note" style={{ margin: 0 }}>
-          Stesse definizioni di <code>daily_stats.bat</code>. Per confrontare i numeri usa la
-          stessa finestra: quello strumento considera la giornata lavorativa 09:00–20:45, qui
-          il default è la giornata intera.
-          {stats.fromTime !== '00:00' || stats.toTime !== '24:00' ? (
-            <>
-              {' '}
-              Finestra attuale: {stats.fromTime}–{stats.toTime}.
-            </>
-          ) : null}
-        </p>
-      </div>
     </section>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="stat">
-      <div className="label">{label}</div>
-      <div className={`value${accent ? ' accent' : ''}`}>{value}</div>
-      {sub && <div className="sub">{sub}</div>}
-    </div>
-  );
-}
-
-function DayCard({ title, s }: { title: string; s: Stats }) {
-  return (
-    <div className="stat">
-      <div className="label">{title}</div>
-      <div className="value">
-        {n(s.detected)}
-        <span style={{ fontSize: 15, color: 'var(--ink-3)', fontWeight: 400 }}>
-          {' '}
-          / {n(s.calls)}
-        </span>
-      </div>
-      <div className="sub">
-        rilevazioni su chiamate — {pct(s.detected, s.calls)} · {n(s.killed)} interrotte
-      </div>
-    </div>
   );
 }
 

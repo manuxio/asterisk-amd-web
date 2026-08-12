@@ -39,7 +39,7 @@ import {
 } from './db.js';
 import { audioExists, buildRoots, safeAudioPath, sendAudio } from './audio.js';
 import { serveStatic } from './static.js';
-import { dayRangeToUtc, shiftDay, today } from './tz.js';
+import { dayRangeToUtc, today } from './tz.js';
 import type { Detection, ServerInfo } from '../../shared/types.js';
 
 export const VERSION = '1.0.0';
@@ -312,17 +312,6 @@ async function handle(
         range.toTime,
       );
       return json(res, 200, stats);
-    }
-
-    /* Riepilogo rapido per le schede in cima: oggi + ieri in una chiamata. */
-    if (pathname === '/api/summary') {
-      const t = today(cfg.timezone);
-      const y = shiftDay(t, -1);
-      const build = (day: string) => {
-        const r = dayRangeToUtc(day, day, cfg.timezone);
-        return computeStats(dbPath, day, day, r.from, r.to, cfg.timezone);
-      };
-      return json(res, 200, { today: build(t), yesterday: build(y) });
     }
 
     if (pathname === '/api/export.csv') {

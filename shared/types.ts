@@ -31,11 +31,19 @@ export interface DetectionPage {
   offset: number;
 }
 
+/**
+ * Un intervallo del grafico. Il totale della barra e' la BASE, non tutte
+ * le chiamate transitate: cio' che conta sono le chiamate che senza il
+ * modulo sarebbero passate. Occupato, numeri errati e mancate risposte
+ * restano fuori.
+ */
 export interface Bucket {
   /** etichetta locale: "14" per l'ora, "2026-08-11" per il giorno */
   key: string;
-  calls: number;
-  detected: number;
+  /** terminate dal modulo (qualunque stato) + connesse nette */
+  base: number;
+  /** di cui terminate dal modulo */
+  terminate: number;
 }
 
 export interface Stats {
@@ -46,15 +54,6 @@ export interface Stats {
   detected: number;
   killed: number;
   answered: number;
-  avgConfidence: number;
-  /** media di timediff_setup_ms sulle rilevazioni: parte dal SETUP, quindi
-   *  comprende tutto il tempo di squillo, non solo l'analisi audio */
-  avgDetectMs: number;
-  /** media di timediff_last_state_ms sulle rilevazioni gia' risposte:
-   *  tempo fra la risposta e la rilevazione */
-  avgAfterAnswerMs: number;
-  /** rilevazioni chiuse PRIMA della risposta (call_state <> 'connect') */
-  detectedPreAnswer: number;
   byOperator: { operator: string; count: number }[];
   buckets: Bucket[];
   /** 'hour' quando l'intervallo copre al massimo 2 giorni, altrimenti 'day' */

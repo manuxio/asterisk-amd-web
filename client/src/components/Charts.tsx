@@ -3,8 +3,8 @@ import type { Bucket } from '../../../shared/types.js';
 import { dayLabel, n, pct } from '../format';
 
 /* Un solo colore di serie (blu, slot 1 della palette validata sulla
- * superficie #16161a); la quota non rilevata usa un neutro, che e' un
- * "resto" e non una seconda categoria. */
+ * superficie #16161a); la quota passata usa un neutro, che e' un "resto"
+ * e non una seconda categoria. */
 const SERIES = '#3987e5';
 const REST = '#4a4a57';
 
@@ -47,7 +47,7 @@ interface Hover {
 export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour' | 'day' }) {
   const [hover, setHover] = useState<Hover | null>(null);
 
-  const max = niceMax(Math.max(1, ...buckets.map((b) => b.calls)));
+  const max = niceMax(Math.max(1, ...buckets.map((b) => b.base)));
   /* Lo slot si adatta al numero di barre (24 ore, 7 o 30 giorni) in modo che
    * il grafico riempia la scheda anche con pochi intervalli, senza produrre
    * barre spropositate. */
@@ -79,8 +79,8 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
 
           {buckets.map((b, i) => {
             const x = i * slot + (slot - barW) / 2;
-            const totalH = scale(b.calls);
-            const detH = scale(b.detected);
+            const totalH = scale(b.base);
+            const detH = scale(b.terminate);
             const restH = Math.max(0, totalH - detH);
             const base = PAD_TOP + PLOT_H;
             const showGap = detH > 0 && restH > GAP;
@@ -152,9 +152,9 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
             role="tooltip"
           >
             <strong>{mode === 'hour' ? `Ore ${hover.bucket.key}:00` : dayLabel(hover.bucket.key)}</strong>
-            <span>{n(hover.bucket.calls)} chiamate</span>
+            <span>{n(hover.bucket.base)} sarebbero passate</span>
             <span>
-              {n(hover.bucket.detected)} rilevate ({pct(hover.bucket.detected, hover.bucket.calls)})
+              {n(hover.bucket.terminate)} terminate ({pct(hover.bucket.terminate, hover.bucket.base)})
             </span>
           </div>
         )}
@@ -162,10 +162,10 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
 
       <div className="legend">
         <span>
-          <i style={{ background: SERIES }} /> Rilevate
+          <i style={{ background: SERIES }} /> Terminate dal modulo
         </span>
         <span>
-          <i style={{ background: REST }} /> Non rilevate
+          <i style={{ background: REST }} /> Connesse
         </span>
       </div>
     </div>

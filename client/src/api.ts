@@ -70,7 +70,6 @@ export const api = {
     return req<Stats>(`/api/stats?${p}`);
   },
 
-  summary: () => req<{ today: Stats; yesterday: Stats }>('/api/summary'),
 };
 
 export const audioUrl = (id: number) => `/api/audio/${id}`;

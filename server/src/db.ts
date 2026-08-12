@@ -236,15 +236,6 @@ export function computeStats(
               SUM(operator <> '') AS detected,
               SUM(${KILLED}) AS killed,
               SUM(call_state = 'connect') AS answered,
-              AVG(CASE WHEN operator <> '' THEN confidence END) AS avg_conf,
-              AVG(CASE WHEN operator <> '' THEN timediff_setup_ms END) AS avg_ms,
-              -- timediff_last_state_ms = ms fra l'ultimo cambio di stato SIP
-              -- e la risoluzione. Sulle chiamate risposte e' quindi il tempo
-              -- risposta -> rilevazione, che e' il dato di reattivita' vero:
-              -- avg_ms parte dal setup e include tutto lo squillo.
-              AVG(CASE WHEN operator <> '' AND call_state = 'connect'
-                       THEN timediff_last_state_ms END) AS avg_after_answer,
-              SUM(operator <> '' AND call_state <> 'connect') AS detected_pre,
               -- Classi del TRANSITO (stesse definizioni di daily_stats.cjs)
               SUM(${KILLED} AND call_state <> 'connect') AS killed_pre,
               SUM(${KILLED} AND call_state = 'connect') AS killed_post,
@@ -275,11 +266,11 @@ export function computeStats(
   } else if (calls > 0) {
     /* Le date in tabella sono UTC: il raggruppamento per ora/giorno LOCALE
      * non e' esprimibile in SQL senza incorporare le regole dell'ora legale,
-     * quindi si scaricano solo le due colonne necessarie e si aggrega qui. */
+     * quindi si scaricano solo le colonne necessarie e si aggrega qui. */
     const rows = db
       .prepare(
-        "SELECT datetime, (operator <> '') AS det FROM detections" +
-          ' WHERE datetime >= ? AND datetime < ?',
+        `SELECT datetime, (${KILLED}) AS killed, (call_state = 'connect') AS conn` +
+          ' FROM detections WHERE datetime >= ? AND datetime < ?',
       )
       .all(from, to) as Row[];
     buckets = bucketMode === 'hour' ? bucketByHour(rows, tz) : bucketByDay(rows, fromDay, toDay, tz);
@@ -331,10 +322,6 @@ export function computeStats(
     detected: num(agg.detected),
     killed: num(agg.killed),
     answered: num(agg.answered),
-    avgConfidence: num(agg.avg_conf),
-    avgDetectMs: Math.round(num(agg.avg_ms)),
-    avgAfterAnswerMs: Math.round(num(agg.avg_after_answer)),
-    detectedPreAnswer: num(agg.detected_pre),
     byOperator,
     buckets,
     bucketMode,
@@ -345,18 +332,32 @@ export function computeStats(
 function emptyHours(): Bucket[] {
   return Array.from({ length: 24 }, (_, h) => ({
     key: String(h).padStart(2, '0'),
-    calls: 0,
-    detected: 0,
+    base: 0,
+    terminate: 0,
   }));
 }
 
 function emptyDays(fromDay: string, toDay: string): Bucket[] {
   const out: Bucket[] = [];
   for (let day = fromDay; ; day = shiftDay(day, 1)) {
-    out.push({ key: day, calls: 0, detected: 0 });
+    out.push({ key: day, base: 0, terminate: 0 });
     if (day === toDay || out.length > 400) break;
   }
   return out;
+}
+
+/**
+ * Aggiunge una riga al suo intervallo applicando la regola della base:
+ * contano solo le chiamate che senza il modulo sarebbero passate, cioe'
+ * quelle che il modulo ha chiuso e quelle arrivate a connect. Occupato,
+ * numeri errati e mancate risposte non entrano nel grafico.
+ */
+function addRow(b: Bucket, r: Row): void {
+  const killed = !!num(r.killed);
+  const conn = !!num(r.conn);
+  if (!killed && !conn) return;
+  b.base += 1;
+  if (killed) b.terminate += 1;
 }
 
 function bucketByHour(rows: Row[], tz: string): Bucket[] {
@@ -364,9 +365,7 @@ function bucketByHour(rows: Row[], tz: string): Bucket[] {
   for (const r of rows) {
     const d = new Date(str(r.datetime));
     if (Number.isNaN(d.getTime())) continue;
-    const b = out[localHour(d, tz)];
-    b.calls += 1;
-    if (num(r.det)) b.detected += 1;
+    addRow(out[localHour(d, tz)], r);
   }
   return out;
 }
@@ -379,8 +378,7 @@ function bucketByDay(rows: Row[], fromDay: string, toDay: string, tz: string): B
     if (Number.isNaN(d.getTime())) continue;
     const i = index.get(formatLocalDate(d, tz));
     if (i === undefined) continue;
-    out[i].calls += 1;
-    if (num(r.det)) out[i].detected += 1;
+    addRow(out[i], r);
   }
   return out;
 }
