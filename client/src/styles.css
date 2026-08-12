@@ -338,6 +338,7 @@ main {
 .chart-tooltip {
   position: absolute;
   transform: translate(-50%, -100%);
+  max-width: 240px;
   pointer-events: none;
   background: var(--surface-3);
   border: 1px solid var(--line-strong);
@@ -350,6 +351,11 @@ main {
   white-space: nowrap;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   z-index: 10;
+}
+/* Colonna alta: il tooltip scende sotto la cima invece di finire
+   ritagliato dal contenitore che scorre. */
+.chart-tooltip.sotto {
+  transform: translate(-50%, 0);
 }
 .chart-tooltip strong {
   font-size: 12px;

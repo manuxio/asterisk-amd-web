@@ -332,6 +332,7 @@ export function computeStats(
 function emptyHours(): Bucket[] {
   return Array.from({ length: 24 }, (_, h) => ({
     key: String(h).padStart(2, '0'),
+    totale: 0,
     base: 0,
     terminate: 0,
   }));
@@ -340,7 +341,7 @@ function emptyHours(): Bucket[] {
 function emptyDays(fromDay: string, toDay: string): Bucket[] {
   const out: Bucket[] = [];
   for (let day = fromDay; ; day = shiftDay(day, 1)) {
-    out.push({ key: day, base: 0, terminate: 0 });
+    out.push({ key: day, totale: 0, base: 0, terminate: 0 });
     if (day === toDay || out.length > 400) break;
   }
   return out;
@@ -353,6 +354,7 @@ function emptyDays(fromDay: string, toDay: string): Bucket[] {
  * numeri errati e mancate risposte non entrano nel grafico.
  */
 function addRow(b: Bucket, r: Row): void {
+  b.totale += 1;
   const killed = !!num(r.killed);
   const conn = !!num(r.conn);
   if (!killed && !conn) return;

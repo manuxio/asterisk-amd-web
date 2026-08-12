@@ -7,9 +7,13 @@ import { dayLabel, n, pct } from '../format';
  * e non una seconda categoria. */
 const SERIES = '#3987e5';
 const REST = '#4a4a57';
+/* Il totale transitato e' contesto, non una serie: resta molto recessivo
+ * per non competere con la base, che e' il dato che conta. */
+const GHOST = 'rgba(255,255,255,0.07)';
 
-const H = 168;
-const PAD_TOP = 12;
+const H = 190;
+/* Spazio in alto per l'etichetta del totale sopra la barra. */
+const PAD_TOP = 26;
 const PAD_BOTTOM = 24;
 const PLOT_H = H - PAD_TOP - PAD_BOTTOM;
 const GAP = 2; /* stacco fra i due segmenti dello stack */
@@ -38,6 +42,11 @@ function niceMax(v: number): number {
   return 10 * mag;
 }
 
+/* Stime dell'ingombro del tooltip: servono a decidere se ribaltarlo e a
+ * limitarne la posizione orizzontale, prima che il browser lo misuri. */
+const TOOLTIP_H = 92;
+const TOOLTIP_W = 190;
+
 interface Hover {
   x: number;
   y: number;
@@ -47,7 +56,9 @@ interface Hover {
 export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour' | 'day' }) {
   const [hover, setHover] = useState<Hover | null>(null);
 
-  const max = niceMax(Math.max(1, ...buckets.map((b) => b.base)));
+  /* La scala segue il totale transitato: senza, la barra sfumata sforerebbe
+   * fuori dal grafico. */
+  const max = niceMax(Math.max(1, ...buckets.map((b) => b.totale)));
   /* Lo slot si adatta al numero di barre (24 ore, 7 o 30 giorni) in modo che
    * il grafico riempia la scheda anche con pochi intervalli, senza produrre
    * barre spropositate. */
@@ -79,22 +90,28 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
 
           {buckets.map((b, i) => {
             const x = i * slot + (slot - barW) / 2;
-            const totalH = scale(b.base);
+            const ghostH = scale(b.totale);
+            const baseH = scale(b.base);
             const detH = scale(b.terminate);
-            const restH = Math.max(0, totalH - detH);
-            const base = PAD_TOP + PLOT_H;
+            const restH = Math.max(0, baseH - detH);
+            const floor = PAD_TOP + PLOT_H;
             const showGap = detH > 0 && restH > GAP;
-            const restTop = base - totalH;
-            const detTop = base - detH;
+            const restTop = floor - baseH;
+            const detTop = floor - detH;
+            const mostraEtichetta = i % every === 0 || i === 0;
 
             return (
               <g
                 key={b.key}
-                onMouseEnter={() => setHover({ x: x + barW / 2, y: base - totalH, bucket: b })}
+                onMouseEnter={() => setHover({ x: x + barW / 2, y: floor - ghostH, bucket: b })}
                 onMouseLeave={() => setHover((h) => (h?.bucket.key === b.key ? null : h))}
               >
                 {/* area di aggancio piu' grande della barra */}
                 <rect x={i * slot} y={PAD_TOP} width={slot} height={PLOT_H} fill="transparent" />
+                {/* totale transitato: contesto dietro alla base */}
+                {ghostH > 0 && (
+                  <path d={topRounded(x, floor - ghostH, barW, ghostH, 4)} fill={GHOST} />
+                )}
                 {restH > 0 && (
                   <path
                     d={topRounded(x, restTop, barW, showGap ? restH - GAP : restH, 4)}
@@ -110,9 +127,9 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
                 {hover?.bucket.key === b.key && (
                   <rect
                     x={x - 1}
-                    y={base - totalH - 1}
+                    y={floor - ghostH - 1}
                     width={barW + 2}
-                    height={totalH + 1}
+                    height={ghostH + 1}
                     fill="none"
                     stroke="var(--ink)"
                     strokeWidth={1}
@@ -120,7 +137,19 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
                     rx={4}
                   />
                 )}
-                {(i % every === 0 || i === 0) && (
+                {/* totale transitato sopra la colonna */}
+                {mostraEtichetta && b.totale > 0 && (
+                  <text
+                    x={i * slot + slot / 2}
+                    y={Math.max(10, floor - ghostH - 6)}
+                    fill="var(--ink-3)"
+                    fontSize={10}
+                    textAnchor="middle"
+                  >
+                    {n(b.totale)}
+                  </text>
+                )}
+                {mostraEtichetta && (
                   <text
                     x={i * slot + slot / 2}
                     y={H - 8}
@@ -146,12 +175,21 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
         </svg>
 
         {hover && (
+          /* Con una colonna alta non c'e' spazio sopra: il tooltip si
+           * ribalta sotto la cima della barra, altrimenti verrebbe
+           * ritagliato dal contenitore, che scorre in orizzontale e quindi
+           * ritaglia anche in verticale. Il lato viene limitato per non
+           * uscire dai bordi. */
           <div
-            className="chart-tooltip"
-            style={{ left: hover.x, top: Math.max(0, hover.y - 8) }}
+            className={`chart-tooltip${hover.y < TOOLTIP_H ? ' sotto' : ''}`}
+            style={{
+              left: Math.min(Math.max(hover.x, TOOLTIP_W / 2), Math.max(W - TOOLTIP_W / 2, TOOLTIP_W / 2)),
+              top: hover.y < TOOLTIP_H ? hover.y + 10 : hover.y - 8,
+            }}
             role="tooltip"
           >
             <strong>{mode === 'hour' ? `Ore ${hover.bucket.key}:00` : dayLabel(hover.bucket.key)}</strong>
+            <span>{n(hover.bucket.totale)} transitate</span>
             <span>{n(hover.bucket.base)} sarebbero passate</span>
             <span>
               {n(hover.bucket.terminate)} terminate ({pct(hover.bucket.terminate, hover.bucket.base)})
@@ -166,6 +204,10 @@ export function BucketChart({ buckets, mode }: { buckets: Bucket[]; mode: 'hour'
         </span>
         <span>
           <i style={{ background: REST }} /> Connesse
+        </span>
+        <span>
+          <i style={{ background: GHOST, border: '1px solid var(--line-strong)' }} /> Totale
+          transitato
         </span>
       </div>
     </div>

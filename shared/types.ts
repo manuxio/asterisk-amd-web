@@ -40,6 +40,9 @@ export interface DetectionPage {
 export interface Bucket {
   /** etichetta locale: "14" per l'ora, "2026-08-11" per il giorno */
   key: string;
+  /** tutte le chiamate transitate dal PBX nell'intervallo, non contattabili
+   *  comprese: e' il contesto, disegnato come barra sfumata dietro */
+  totale: number;
   /** terminate dal modulo (qualunque stato) + connesse nette */
   base: number;
   /** di cui terminate dal modulo */
