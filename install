@@ -234,9 +234,15 @@ IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
 printf '\n\033[1m============================================================\033[0m\n'
 if [ "$NEED_USER" = "1" ]; then
+    # Come root il prefisso sudo -u root sarebbe solo rumore.
+    if [ "$SERVICE_USER" = "root" ]; then
+        AS_USER=""
+    else
+        AS_USER="sudo -u $SERVICE_USER "
+    fi
     say "Installazione completata. Manca il primo utente:"
     say ""
-    say "  sudo -u $SERVICE_USER $INSTALL_DIR/amd-detex-web useradd admin \\"
+    say "  $AS_USER$INSTALL_DIR/amd-detex-web useradd admin \\"
     say "       --config $CONFIG"
     if [ "$HAVE_SYSTEMD" = "1" ]; then
         say "  sudo systemctl start amd-detex-web"
