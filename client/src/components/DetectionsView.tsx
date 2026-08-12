@@ -22,6 +22,11 @@ import DateRange, { type Range } from './DateRange';
 
 const PAGE = 50;
 
+/* Secondi finali da riascoltare cliccando l'altoparlante. La rilevazione
+ * cade in fondo alla registrazione: partire dall'inizio significherebbe
+ * aspettare tutto l'annuncio per sentire il pezzo che conta. */
+const CODA_SECONDI = 2;
+
 export default function DetectionsView({
   range,
   onRange,
@@ -298,7 +303,24 @@ function Row({
    * viene montato nello stesso gesto del clic, quindi il browser concede
    * l'attivazione utente. Se la rifiuta comunque, restano i controlli. */
   useEffect(() => {
-    if (open && autoplay) audioRef.current?.play().catch(() => undefined);
+    if (!open || !autoplay) return;
+    const a = audioRef.current;
+    if (!a) return;
+
+    /* Salta agli ultimi CODA_SECONDI. La durata si conosce solo a metadati
+     * caricati: se non ci sono ancora, si aspetta l'evento. */
+    const seekToTail = () => {
+      const dur = a.duration;
+      if (Number.isFinite(dur) && dur > CODA_SECONDI) a.currentTime = dur - CODA_SECONDI;
+      a.play().catch(() => undefined);
+    };
+
+    if (a.readyState >= 1 /* HAVE_METADATA */) {
+      seekToTail();
+      return;
+    }
+    a.addEventListener('loadedmetadata', seekToTail, { once: true });
+    return () => a.removeEventListener('loadedmetadata', seekToTail);
   }, [open, autoplay, d.id]);
 
   return (
@@ -341,8 +363,8 @@ function Row({
           {d.hasAudio ? (
             <button
               className="btn ghost play"
-              title="Ascolta la registrazione"
-              aria-label="Ascolta la registrazione"
+              title={`Ascolta gli ultimi ${CODA_SECONDI} secondi`}
+              aria-label={`Ascolta gli ultimi ${CODA_SECONDI} secondi della registrazione`}
               onClick={(e) => {
                 /* Senza questo il clic arriverebbe alla riga e la
                  * richiuderebbe subito dopo averla aperta. */

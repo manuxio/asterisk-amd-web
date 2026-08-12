@@ -536,6 +536,31 @@ p.note {
   margin: 12px 0 0;
   max-width: 78ch;
 }
+/* Tabelle di ripartizione (Transito, Filtraggio). */
+table.breakdown td {
+  white-space: normal;
+}
+table.breakdown td.indent {
+  padding-left: 32px;
+  color: var(--ink-2);
+}
+table.breakdown tr.strong td {
+  font-weight: 600;
+  color: var(--ink);
+}
+table.breakdown td.num {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+}
+table.breakdown td.quota {
+  color: var(--accent-ink);
+  padding-right: 16px;
+}
+table.breakdown tr:last-child td {
+  border-bottom: 0;
+}
+
 .sub-head {
   margin: 22px 0 10px;
   padding-top: 16px;

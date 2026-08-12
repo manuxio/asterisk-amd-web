@@ -63,7 +63,12 @@ export const api = {
   operators: (from: string, to: string) =>
     req<{ operators: string[] }>(`/api/operators?from=${from}&to=${to}`),
 
-  stats: (from: string, to: string) => req<Stats>(`/api/stats?from=${from}&to=${to}`),
+  stats: (from: string, to: string, fromTime?: string, toTime?: string) => {
+    const p = new URLSearchParams({ from, to });
+    if (fromTime) p.set('fromTime', fromTime);
+    if (toTime) p.set('toTime', toTime);
+    return req<Stats>(`/api/stats?${p}`);
+  },
 
   summary: () => req<{ today: Stats; yesterday: Stats }>('/api/summary'),
 };

@@ -212,6 +212,12 @@ export function listOperators(dbPath: string, from: string, to: string): string[
  * modulo ha eseguito una hangup. */
 const KILLED = "action IN ('hangup','hangup_with_reason')";
 
+/* Entro questa soglia una segreteria riconosciuta dopo la risposta conta
+ * come "filtrata": l'operatore non ha fatto in tempo a parlarci. Valore
+ * fisso a 2 s come in daily_stats.cjs — cambiarlo qui renderebbe i due
+ * conteggi non piu' confrontabili. */
+const POST_SOGLIA_MS = 2000;
+
 export function computeStats(
   dbPath: string,
   fromDay: string,
@@ -219,6 +225,8 @@ export function computeStats(
   from: string,
   to: string,
   tz: string,
+  fromTime = '00:00',
+  toTime = '24:00',
 ): Stats {
   const db = getDb(dbPath);
 
@@ -236,7 +244,12 @@ export function computeStats(
               -- avg_ms parte dal setup e include tutto lo squillo.
               AVG(CASE WHEN operator <> '' AND call_state = 'connect'
                        THEN timediff_last_state_ms END) AS avg_after_answer,
-              SUM(operator <> '' AND call_state <> 'connect') AS detected_pre
+              SUM(operator <> '' AND call_state <> 'connect') AS detected_pre,
+              -- Classi del TRANSITO (stesse definizioni di daily_stats.cjs)
+              SUM(${KILLED} AND call_state <> 'connect') AS killed_pre,
+              SUM(${KILLED} AND call_state = 'connect') AS killed_post,
+              SUM(${KILLED} AND call_state = 'connect'
+                  AND timediff_last_state_ms <= ${POST_SOGLIA_MS}) AS killed_post_fast
          FROM detections WHERE datetime >= ? AND datetime < ?`,
     )
     .get(from, to) as Row;
@@ -274,9 +287,45 @@ export function computeStats(
     buckets = bucketMode === 'hour' ? emptyHours() : emptyDays(fromDay, toDay);
   }
 
+  /* ── TRANSITO: quattro classi disgiunte che sommano al totale ──
+   * Definizioni identiche a tools/daily_stats.cjs. */
+  const killedPre = num(agg.killed_pre);
+  const killedPost = num(agg.killed_post);
+  const killedPostFast = num(agg.killed_post_fast);
+  const connectLordo = num(agg.answered);
+  /* Connesse NETTE: chi e' arrivato a connect senza essere chiuso dal
+   * modulo. Le segreterie post stanno nella loro classe, non qui. */
+  const connesse = connectLordo - killedPost;
+  const nonContattabili = calls - killedPre - killedPost - connesse;
+
+  const transito = {
+    totale: calls,
+    nonContattabili,
+    segreterie: killedPre,
+    segreteriePost: killedPost,
+    connesse,
+  };
+
+  /* ── FILTRAGGIO: efficacia sulle chiamate arrivate da qualche parte ──
+   * Base = terminate dal modulo + connesse nette, due insiemi disgiunti:
+   * sommare il connect LORDO conterebbe due volte le segreterie post. */
+  const terminateDalModulo = killedPre + killedPost;
+  const filtraggio = {
+    base: terminateDalModulo + connesse,
+    terminateDalModulo,
+    terminatePreConnect: killedPre,
+    terminatePostEntro2s: killedPostFast,
+    terminatePostOltre2s: killedPost - killedPostFast,
+    filtrate: killedPre + killedPostFast,
+  };
+
   return {
     from: fromDay,
     to: toDay,
+    fromTime,
+    toTime,
+    transito,
+    filtraggio,
     timezone: tz,
     calls,
     detected: num(agg.detected),

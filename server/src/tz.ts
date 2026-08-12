@@ -68,30 +68,55 @@ export function localHour(date: Date, tz: string): number {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]?\d|2[0-4]):([0-5]\d)$/;
+
+/** "HH:MM" -> [ore, minuti]. "24:00" e' ammesso e vale fine giornata. */
+function parseTime(t: string, fallback: [number, number]): [number, number] {
+  if (!t) return fallback;
+  const m = TIME_RE.exec(t.trim());
+  if (!m) throw new Error(`orario non valido: ${t} (atteso HH:MM)`);
+  return [Number(m[1]), Number(m[2])];
+}
 
 /**
  * Converte un intervallo di giorni locali (estremi inclusi) nella coppia di
  * timestamp UTC da usare nel WHERE: [from, to).
+ *
+ * `fromTime`/`toTime` restringono la finestra agli ESTREMI dell'intervallo,
+ * non a ogni singolo giorno: su un solo giorno equivale alla giornata
+ * lavorativa di daily_stats.cjs, su piu' giorni e' un intervallo continuo
+ * che comprende anche le notti intermedie.
  */
-export function dayRangeToUtc(fromDay: string, toDay: string, tz: string): { from: string; to: string } {
+export function dayRangeToUtc(
+  fromDay: string,
+  toDay: string,
+  tz: string,
+  fromTime = '00:00',
+  toTime = '24:00',
+): { from: string; to: string } {
   if (!DATE_RE.test(fromDay) || !DATE_RE.test(toDay))
     throw new Error('data non valida, atteso il formato YYYY-MM-DD');
+
+  const [fh, fmin] = parseTime(fromTime, [0, 0]);
+  const [th, tmin] = parseTime(toTime, [24, 0]);
+
   const [fy, fm, fd] = fromDay.split('-').map(Number);
   const [ty, tm, td] = toDay.split('-').map(Number);
-  const start = zonedTimeToUtc(fy, fm, fd, 0, 0, 0, tz);
-  /* Estremo destro esclusivo: mezzanotte del giorno successivo. Passare
-   * day+1 a Date.UTC gestisce da solo i fine mese. */
-  const endBase = new Date(Date.UTC(ty, tm - 1, td + 1));
+
+  const start = zonedTimeToUtc(fy, fm, fd, fh, fmin, 0, tz);
+  /* L'estremo destro e' esclusivo. Con 24:00 diventa la mezzanotte del
+   * giorno dopo; passare day+1 a Date.UTC gestisce da solo i fine mese. */
+  const endBase = new Date(Date.UTC(ty, tm - 1, td + (th >= 24 ? 1 : 0)));
   const end = zonedTimeToUtc(
     endBase.getUTCFullYear(),
     endBase.getUTCMonth() + 1,
     endBase.getUTCDate(),
-    0,
-    0,
+    th >= 24 ? 0 : th,
+    th >= 24 ? 0 : tmin,
     0,
     tz,
   );
-  if (end.getTime() <= start.getTime()) throw new Error('intervallo di date vuoto o invertito');
+  if (end.getTime() <= start.getTime()) throw new Error('intervallo vuoto o invertito');
   return { from: toDbStamp(start), to: toDbStamp(end) };
 }
 

@@ -61,6 +61,56 @@ export interface Stats {
   bucketMode: 'hour' | 'day';
   /** true se i grafici sono stati omessi perche' l'intervallo e' troppo ampio */
   bucketsTruncated: boolean;
+  /** finestra oraria applicata agli estremi dell'intervallo (HH:MM) */
+  fromTime: string;
+  toTime: string;
+  transito: Transito;
+  filtraggio: Filtraggio;
+}
+
+/**
+ * Partizione esatta delle chiamate transitate dal PBX in quattro classi
+ * disgiunte che sommano al totale. Definizioni identiche a
+ * tools/daily_stats.cjs nel repo del modulo: sono la contabilita' gia' in
+ * uso, e duplicarla con criteri diversi genererebbe solo confusione.
+ */
+export interface Transito {
+  /** COUNT(*): una riga per ogni chiamata conclusa */
+  totale: number;
+  /** mai connesse e mai fermate dal modulo: nessuna risposta, occupato,
+   *  numero errato, errori di rete */
+  nonContattabili: number;
+  /** terminate dal modulo PRIMA della connessione (call_state <> connect) */
+  segreterie: number;
+  /** terminate dal modulo DOPO la risposta (call_state = connect) */
+  segreteriePost: number;
+  /** call_state = connect meno le segreterie post */
+  connesse: number;
+}
+
+/**
+ * Efficacia del filtro sulle sole chiamate che sono arrivate da qualche
+ * parte, escludendo quindi le non contattabili.
+ *
+ * La base somma due classi DISGIUNTE: le chiamate chiuse dal modulo
+ * (in qualunque stato) e le connesse NETTE, cioe' quelle arrivate a
+ * connect e non chiuse dal modulo. Usare il connect lordo conterebbe due
+ * volte le segreterie riconosciute dopo la risposta.
+ */
+export interface Filtraggio {
+  /** terminateDalModulo + connesse nette */
+  base: number;
+  /** hangup del modulo in qualunque stato: e' il numeratore principale */
+  terminateDalModulo: number;
+  /** di cui chiuse prima della connessione */
+  terminatePreConnect: number;
+  /** di cui chiuse entro 2 s dalla risposta */
+  terminatePostEntro2s: number;
+  /** di cui chiuse oltre 2 s dalla risposta */
+  terminatePostOltre2s: number;
+  /** definizione storica di daily_stats.cjs: pre-connect + post entro 2 s.
+   *  Conservata per poter confrontare i due conteggi. */
+  filtrate: number;
 }
 
 export interface Me {

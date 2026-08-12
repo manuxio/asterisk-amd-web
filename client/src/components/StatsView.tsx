@@ -18,12 +18,16 @@ export default function StatsView({
   const [summary, setSummary] = useState<{ today: Stats; yesterday: Stats } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  /* Finestra oraria: vuota = giornata intera. Impostandola a 09:00-20:45 si
+   * riproduce la giornata lavorativa di daily_stats.bat. */
+  const [fromTime, setFromTime] = useState('');
+  const [toTime, setToTime] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     api
-      .stats(range.from, range.to)
+      .stats(range.from, range.to, fromTime, toTime)
       .then((s) => {
         if (!cancelled) {
           setStats(s);
@@ -35,7 +39,7 @@ export default function StatsView({
     return () => {
       cancelled = true;
     };
-  }, [range.from, range.to]);
+  }, [range.from, range.to, fromTime, toTime]);
 
   useEffect(() => {
     api.summary().then(setSummary).catch(() => setSummary(null));
@@ -46,6 +50,46 @@ export default function StatsView({
       <section className="card">
         <div className="filters">
           <DateRange value={range} onChange={onRange} />
+          <label className="field">
+            Dalle
+            <input
+              className="input"
+              type="time"
+              value={fromTime}
+              onChange={(e) => setFromTime(e.target.value)}
+            />
+          </label>
+          <label className="field">
+            Alle
+            <input
+              className="input"
+              type="time"
+              value={toTime}
+              onChange={(e) => setToTime(e.target.value)}
+            />
+          </label>
+          <button
+            className="btn chip"
+            aria-pressed={fromTime === '09:00' && toTime === '20:45'}
+            title="Stessa finestra usata da daily_stats.bat"
+            onClick={() => {
+              setFromTime('09:00');
+              setToTime('20:45');
+            }}
+          >
+            Orario lavorativo
+          </button>
+          {(fromTime || toTime) && (
+            <button
+              className="btn chip"
+              onClick={() => {
+                setFromTime('');
+                setToTime('');
+              }}
+            >
+              Giornata intera
+            </button>
+          )}
         </div>
       </section>
 
@@ -105,6 +149,9 @@ export default function StatsView({
             />
           </div>
 
+          <TransitoCard stats={stats} />
+          <FiltraggioCard stats={stats} />
+
           <section className="card">
             <header>
               <h2>{stats.bucketMode === 'hour' ? 'Distribuzione oraria' : 'Andamento giornaliero'}</h2>
@@ -135,6 +182,149 @@ export default function StatsView({
 
       {info && <InfoCard info={info} />}
     </>
+  );
+}
+
+/** Riga di una tabella di ripartizione: valore + quota sulla base. */
+function BreakRow({
+  label,
+  value,
+  base,
+  strong,
+  indent,
+  hint,
+}: {
+  label: string;
+  value: number;
+  base: number;
+  strong?: boolean;
+  indent?: boolean;
+  hint?: string;
+}) {
+  return (
+    <tr className={strong ? 'strong' : undefined}>
+      <td className={indent ? 'indent' : undefined}>
+        {label}
+        {hint && <span className="note"> — {hint}</span>}
+      </td>
+      <td className="num">{n(value)}</td>
+      <td className="num quota">{base ? pct(value, base) : '—'}</td>
+    </tr>
+  );
+}
+
+function TransitoCard({ stats }: { stats: Stats }) {
+  const t = stats.transito;
+  return (
+    <section className="card">
+      <header>
+        <h2>Transito PBX</h2>
+        <span className="hint">quattro classi disgiunte, sommano al totale</span>
+      </header>
+      <div className="table-wrap">
+        <table className="breakdown">
+          <tbody>
+            <BreakRow label="Chiamate transitate dal PBX" value={t.totale} base={t.totale} strong />
+            <BreakRow
+              label="non contattabili in quel momento"
+              value={t.nonContattabili}
+              base={t.totale}
+              indent
+              hint="nessuna risposta, occupato, numero errato, errori di rete"
+            />
+            <BreakRow
+              label="segreterie"
+              value={t.segreterie}
+              base={t.totale}
+              indent
+              hint="chiuse dal modulo prima della connessione"
+            />
+            <BreakRow
+              label="segreterie post"
+              value={t.segreteriePost}
+              base={t.totale}
+              indent
+              hint="riconosciute dopo la risposta"
+            />
+            <BreakRow
+              label="connesse"
+              value={t.connesse}
+              base={t.totale}
+              indent
+              hint="arrivate a connect e non chiuse dal modulo"
+            />
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function FiltraggioCard({ stats }: { stats: Stats }) {
+  const f = stats.filtraggio;
+  return (
+    <section className="card">
+      <header>
+        <h2>Filtraggio</h2>
+        <span className="hint">base = terminate dal modulo + connesse, esclude le non contattabili</span>
+      </header>
+      <div className="table-wrap">
+        <table className="breakdown">
+          <tbody>
+            <BreakRow
+              label="Chiamate terminate dal modulo + connesse (base)"
+              value={f.base}
+              base={f.base}
+              strong
+            />
+            <BreakRow
+              label="Chiamate terminate dal modulo"
+              value={f.terminateDalModulo}
+              base={f.base}
+              strong
+              hint="in qualunque stato"
+            />
+            <BreakRow
+              label="di cui prima della connessione"
+              value={f.terminatePreConnect}
+              base={f.base}
+              indent
+            />
+            <BreakRow
+              label="di cui entro 2 s dalla risposta"
+              value={f.terminatePostEntro2s}
+              base={f.base}
+              indent
+            />
+            <BreakRow
+              label="di cui oltre 2 s dalla risposta"
+              value={f.terminatePostOltre2s}
+              base={f.base}
+              indent
+            />
+            <BreakRow
+              label="Chiamate filtrate"
+              value={f.filtrate}
+              base={f.base}
+              hint="definizione di daily_stats: pre-connect + post entro 2 s"
+            />
+          </tbody>
+        </table>
+      </div>
+      <div className="body" style={{ paddingTop: 0 }}>
+        <p className="note" style={{ margin: 0 }}>
+          Stesse definizioni di <code>daily_stats.bat</code>. Per confrontare i numeri usa la
+          stessa finestra: quello strumento considera la giornata lavorativa 09:00–20:45, qui
+          il default è la giornata intera.
+          {stats.fromTime !== '00:00' || stats.toTime !== '24:00' ? (
+            <>
+              {' '}
+              Finestra attuale: {stats.fromTime}–{stats.toTime}.
+            </>
+          ) : null}
+        </p>
+      </div>
+    </section>
   );
 }
 

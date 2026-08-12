@@ -86,6 +86,8 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
 interface Range {
   fromDay: string;
   toDay: string;
+  fromTime: string;
+  toTime: string;
   from: string;
   to: string;
 }
@@ -94,8 +96,12 @@ function parseRange(url: URL, tz: string): Range {
   const t = today(tz);
   const fromDay = url.searchParams.get('from') || t;
   const toDay = url.searchParams.get('to') || fromDay;
-  const { from, to } = dayRangeToUtc(fromDay, toDay, tz);
-  return { fromDay, toDay, from, to };
+  /* Finestra oraria opzionale, per riprodurre la giornata lavorativa di
+   * daily_stats.cjs (09:00-20:45). Vuota = giornata intera. */
+  const fromTime = url.searchParams.get('fromTime') || '00:00';
+  const toTime = url.searchParams.get('toTime') || '24:00';
+  const { from, to } = dayRangeToUtc(fromDay, toDay, tz, fromTime, toTime);
+  return { fromDay, toDay, fromTime, toTime, from, to };
 }
 
 function parseInt0(v: string | null, def: number, min: number, max: number): number {
@@ -295,7 +301,16 @@ async function handle(
 
     if (pathname === '/api/stats') {
       const range = parseRange(url, cfg.timezone);
-      const stats = computeStats(dbPath, range.fromDay, range.toDay, range.from, range.to, cfg.timezone);
+      const stats = computeStats(
+        dbPath,
+        range.fromDay,
+        range.toDay,
+        range.from,
+        range.to,
+        cfg.timezone,
+        range.fromTime,
+        range.toTime,
+      );
       return json(res, 200, stats);
     }
 
