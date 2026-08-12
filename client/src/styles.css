@@ -171,6 +171,10 @@ label.field {
   width: 15px;
   height: 15px;
 }
+.check.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* ── Struttura ──────────────────────────────────────────────────────── */
 

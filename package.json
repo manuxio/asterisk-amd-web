@@ -1,6 +1,6 @@
 {
   "name": "asterisk-amd-web",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "description": "Interfaccia web per i riconoscimenti di app_amd_detex",
   "repository": "github:manuxio/asterisk-amd-web",

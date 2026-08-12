@@ -164,6 +164,14 @@ export interface Notifications {
  */
 export type StateFilter = '' | 'pre' | 'setup' | 'alerting' | 'connect';
 
+/**
+ * Valore sentinella del filtro Operatore per "nessuna rilevazione"
+ * (`operator = ''` nel database). Serve perche' la stringa vuota nel
+ * filtro significa gia' "tutti gli operatori". Non puo' collidere con il
+ * nome di un kernel, che e' sempre un'etichetta come VODAFONE o LYCA FAST.
+ */
+export const OPERATOR_NONE = '__none__';
+
 export const STATE_FILTERS: StateFilter[] = ['', 'pre', 'setup', 'alerting', 'connect'];
 
 export interface DetectionFilters {

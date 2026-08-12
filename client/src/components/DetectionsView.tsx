@@ -7,6 +7,7 @@ import type {
   ServerInfo,
   StateFilter,
 } from '../../../shared/types.js';
+import { OPERATOR_NONE } from '../../../shared/types.js';
 import { api, audioUrl, csvUrl, downloadUrl } from '../api';
 import {
   actionLabel,
@@ -60,20 +61,24 @@ export default function DetectionsView({
     return () => clearTimeout(t);
   }, [q]);
 
+  /* Con "Nessuno" il flag e' disattivato nell'interfaccia: non deve
+   * nemmeno partire, altrimenti il server risponderebbe sempre zero. */
+  const soloRilevate = onlyDetected && operator !== OPERATOR_NONE;
+
   const filters: DetectionFilters = {
     from: range.from,
     to: range.to,
     q: debouncedQ || undefined,
     operator: operator || undefined,
     state: state || undefined,
-    onlyDetected,
+    onlyDetected: soloRilevate,
     onlyAudio,
     limit: PAGE,
     offset,
   };
 
   /* Cambiare un filtro riporta alla prima pagina. */
-  const filterKey = `${range.from}|${range.to}|${debouncedQ}|${operator}|${state}|${onlyDetected}|${onlyAudio}`;
+  const filterKey = `${range.from}|${range.to}|${debouncedQ}|${operator}|${state}|${soloRilevate}|${onlyAudio}`;
   const prevKey = useRef(filterKey);
   useEffect(() => {
     if (prevKey.current !== filterKey) {
@@ -131,6 +136,7 @@ export default function DetectionsView({
             Operatore
             <select className="select" value={operator} onChange={(e) => setOperator(e.target.value)}>
               <option value="">Tutti</option>
+              <option value={OPERATOR_NONE}>Nessuno (non rilevate)</option>
               {operators.map((o) => (
                 <option key={o} value={o}>
                   {o}
@@ -152,10 +158,14 @@ export default function DetectionsView({
               <option value="connect">Risposta (connect)</option>
             </select>
           </label>
-          <label className="check">
+          {/* Con "Nessuno" selezionato, "Solo rilevate" darebbe sempre zero
+              risultati: si disattiva invece di lasciare l'elenco vuoto senza
+              spiegazione. */}
+          <label className={`check${operator === OPERATOR_NONE ? ' disabled' : ''}`}>
             <input
               type="checkbox"
-              checked={onlyDetected}
+              checked={onlyDetected && operator !== OPERATOR_NONE}
+              disabled={operator === OPERATOR_NONE}
               onChange={(e) => setOnlyDetected(e.target.checked)}
             />
             Solo rilevate

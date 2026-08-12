@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import type { Detection, DetectionPage, Stats, Bucket } from '../../shared/types.js';
+import { OPERATOR_NONE } from '../../shared/types.js';
 import { dayCount, formatLocalDate, localHour, shiftDay } from './tz.js';
 
 /* Oltre questa soglia i grafici vengono omessi: le serie orarie/giornaliere
@@ -128,7 +129,10 @@ function buildWhere(q: ListQuery): WhereParts {
     const like = `%${q.q}%`;
     params.push(like, like, like);
   }
-  if (q.operator) {
+  if (q.operator === OPERATOR_NONE) {
+    /* Chiamate senza rilevazione: e' proprio il contrario di onlyDetected. */
+    clauses.push("operator = ''");
+  } else if (q.operator) {
     clauses.push('operator = ?');
     params.push(q.operator);
   }
