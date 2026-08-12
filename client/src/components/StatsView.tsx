@@ -266,7 +266,7 @@ function InfoCard({ info }: { info: ServerInfo }) {
     <section className="card">
       <header>
         <h2>Configurazione del modulo</h2>
-        <span className="hint">amd-detex-web {info.version}</span>
+        <span className="hint">interfaccia v{info.version}</span>
       </header>
       <div className="body">
         <dl className="detail-grid">

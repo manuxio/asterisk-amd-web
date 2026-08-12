@@ -51,6 +51,9 @@ export default function App() {
         <div className="brand">
           <Logo />
           AMD Detex <small>riconoscimenti</small>
+          {/* La versione arriva dal server: cosi' e' quella dell'eseguibile
+              in esecuzione, non quella con cui e' stato compilato il client. */}
+          {info && <span className="version">v{info.version}</span>}
         </div>
         <nav className="tabs" role="tablist">
           <button

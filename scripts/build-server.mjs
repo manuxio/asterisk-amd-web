@@ -14,7 +14,12 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outfile = path.join(root, 'dist', 'server.cjs');
 
+/* Unica fonte della versione: package.json. Prima era ricopiata a mano
+ * anche in http.ts ed era rimasta indietro di cinque release. */
+const { version } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+
 const result = await esbuild.build({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   entryPoints: [path.join(root, 'server', 'src', 'index.ts')],
   bundle: true,
   platform: 'node',
@@ -29,7 +34,7 @@ const result = await esbuild.build({
 });
 
 const size = fs.statSync(outfile).size;
-console.log(`build-server: dist/server.cjs (${(size / 1024).toFixed(1)} kB)`);
+console.log(`build-server: dist/server.cjs ${version} (${(size / 1024).toFixed(1)} kB)`);
 
 if (process.env.AMD_WEB_META) {
   fs.writeFileSync(path.join(root, 'dist', 'meta.json'), JSON.stringify(result.metafile));

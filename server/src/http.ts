@@ -42,7 +42,9 @@ import { serveStatic } from './static.js';
 import { dayRangeToUtc, today } from './tz.js';
 import type { Detection, ServerInfo } from '../../shared/types.js';
 
-export const VERSION = '1.0.0';
+/* Iniettata da esbuild leggendo package.json; il fallback serve solo a
+ * dev-server.mjs, che non definisce la costante. */
+export const VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0-dev';
 
 const MAX_BODY = 64 * 1024;
 
