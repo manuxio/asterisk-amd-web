@@ -94,6 +94,7 @@ export default function StatsView({
 
       {stats && (
         <>
+          <TransitoCard stats={stats} />
           <FiltraggioCard stats={stats} />
 
           <section className="card">
@@ -123,10 +124,6 @@ export default function StatsView({
               <OperatorBars data={stats.byOperator} total={stats.detected} />
             </div>
           </section>
-
-          {/* Riferimento generale sul traffico: in fondo, perche' le
-              chiamate mai arrivate a destinazione contano poco. */}
-          <TransitoCard stats={stats} />
         </>
       )}
 
